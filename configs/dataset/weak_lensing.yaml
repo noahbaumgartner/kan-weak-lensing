@@ -18,12 +18,11 @@ standardize: true
 
 task_type: regression
 
-# FAIR-Universe weak-lensing challenge: train against the negative of
-# the leaderboard "score_inference" (KL divergence between true and
-# predicted Gaussian posteriors, with a lambda=1e3 penalty on the point
-# estimate). The trainer also logs MSE on mu and the 68% coverages
-# (per-parameter and mean) defined in the competition overview.
-loss: score_inference
+# NOTE: loss / output_dim / num_targets define the *Versuch* (training
+# objective), not the data — they live in the objective config group
+# (configs/objective/{score,mse}.yaml) and are selected via objective=<name>.
+# n_targets below stays at 2: the dataset always keeps the 2 cosmological
+# labels (Om, S8); only the model head width (output_dim) changes per Versuch.
 
 # image metadata (used by vision models e.g. CNN / KAT)
 img_height: 1424
@@ -40,13 +39,6 @@ scattering_J: 3
 scattering_L: 8
 scattering_order: 2
 input_dim: ${reduced_dim:${dataset.reduction},${dataset.img_height},${dataset.img_width},${dataset.in_chans},${dataset.pool_stride},${dataset.scattering_J},${dataset.scattering_L},${dataset.scattering_order}}
-
-# Predicting (mu, log_sigma) for each cosmological parameter -> 4 outputs.
-# (mu_Om, mu_S8, log_sigma_Om, log_sigma_S8). The labels themselves are
-# 2-dim (Om, S8) -- only the model head is widened. The score_inference
-# loss in src/training/metrics.py splits this 4-vector internally.
-output_dim: 4
-num_targets: 4
 
 # Width / depth knobs consumed by the MLP-style model configs
 # (fastkan / fasterkan / wavkan) via make_width and the sweep ranges.

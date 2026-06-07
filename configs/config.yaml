@@ -13,4 +13,9 @@ defaults:
   - dataset: weak_lensing
   - training: default
   - optimizer: adam
+  # Versuch / Trainings-Objective. Bestimmt loss + output_dim:
+  #   score -> 4 Outputs, score_inference-Loss (Leaderboard-Objective)
+  #   mse   -> 2 Outputs, reine MSE-Regression
+  # Eigenen Versuch: configs/objective/<name>.yaml anlegen, dann objective=<name>.
+  - objective: score
   - _self_

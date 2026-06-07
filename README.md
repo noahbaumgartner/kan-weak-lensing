@@ -33,6 +33,34 @@ uv run python main.py model=wavkan dataset=weak_lensing training=adam
 Der Pfad zu den `.npy`-Dateien wird in `configs/dataset/weak_lensing.yaml`
 (`data_dir`) gesetzt.
 
+## Versuche (objective group)
+
+Ein *Versuch* = Trainings-Objective = Kombination aus Loss-Funktion und
+Modell-Head-Breite. Gewählt über die Hydra-Gruppe `configs/objective/`:
+
+| objective | Outputs | Loss             | Trainer-Pfad / Logging          |
+|-----------|---------|------------------|---------------------------------|
+| `score`   | 4       | `score_inference`| Score + 68%-Coverage + MSE(mu)  |
+| `mse`     | 2       | MSE              | MSE / RMSE / R²                 |
+
+```bash
+# Versuch 1 — reine MSE-Regression auf (Om, S8)
+uv run python main.py model=fastkan objective=mse
+
+# Versuch 2 — score-as-loss (Default)
+uv run python main.py model=fastkan objective=score
+```
+
+Der Datensatz behält immer die 2 Labels (Om, S8); pro Versuch ändert sich nur
+der Head (`output_dim`) und der Loss — der Trainer wählt den passenden
+Eval-/Logging-Pfad automatisch anhand von `dataset.loss`.
+
+**Weiteren Versuch hinzufügen:** neue Datei `configs/objective/<name>.yaml` mit
+`# @package _global_` anlegen, darin `dataset.loss`, `dataset.output_dim`,
+`dataset.num_targets` (und ggf. `training.*`) setzen. Bei einem neuen Loss
+zusätzlich `src/training/trainer.py::_create_loss_fn` erweitern. Lauf:
+`objective=<name>`.
+
 ## MLflow
 
 Setup identisch zu `kan-lab`. Tracking-URI Default: `http://127.0.0.1:9299`
@@ -50,18 +78,24 @@ Sweep-Konfigurationen liegen unter `configs/sweep/`. `tune_base.yaml` definiert
 den Optuna/TPE-Sweeper; die modell-spezifischen Sweeps erben davon.
 
 ```bash
-# Einzelnen Sweep lokal laufen lassen
+# Einzelnen Sweep lokal laufen lassen (Default-objective aus config.yaml = score)
 uv run python main.py --multirun +sweep=image/tune_fastkan_wl dataset=weak_lensing
+
+# Sweep mit anderem Versuch
+uv run python main.py --multirun +sweep=image/tune_fastkan_wl objective=mse
 
 # Alle MLP-artigen KANs auf dem Cluster submitten (fastkan, fasterkan, wavkan)
 ./scripts/submit_all_wl.sh <experiment_name>
+# anderer Versuch im Sweep: OBJECTIVE-Env an den Submit-Job geben, z.B.
+sbatch --export=ALL,EXPERIMENT=wl_mse,OBJECTIVE=mse scripts/tune_fastkan_wl.submit
 ```
 
 ## Struktur
 
 ```
 main.py                     Hydra-Entrypoint
-configs/                    Hydra-Configs (config, model, dataset, optimizer, training, sweep)
+configs/                    Hydra-Configs (config, model, dataset, objective, optimizer, training, sweep)
+  objective/                Versuche: score (4 out, score-loss) / mse (2 out, MSE)
 src/
   dataset.py                WeakLensingDataset (einziger Datensatz)
   models/                   Modell-Wrapper (fastkan, fasterkan, wavkan, kkan, kat) + base

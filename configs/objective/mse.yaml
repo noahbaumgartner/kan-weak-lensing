@@ -1,0 +1,13 @@
+# @package _global_
+#
+# Versuch 1 — Reine Regression mit MSE-Loss.
+#
+# Das Modell gibt genau die 2 kosmologischen Parameter aus (Om, S8) und wird
+# direkt per MSE gegen die (standardisierten) Labels trainiert. Keine
+# Unsicherheitsschaetzung. Der Trainer nutzt automatisch den Regressions-Pfad
+# und loggt MSE / RMSE / R^2 (jede dataset.loss != "score_inference" und
+# != classification fuehrt zu plain MSE).
+dataset:
+  loss: mse
+  output_dim: 2
+  num_targets: 2

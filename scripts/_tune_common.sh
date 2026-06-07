@@ -6,9 +6,15 @@ set -euo pipefail
 : "${EXPERIMENT:?EXPERIMENT must be set by the caller (MLflow experiment name)}"
 
 # Optional overrides:
-#   SWEEP    — Hydra sweep name including subgroup (default: image/tune_${MODEL}_wl)
-#   DATASETS — space-separated list of dataset names
+#   SWEEP     — Hydra sweep name including subgroup (default: image/tune_${MODEL}_wl)
+#   DATASETS  — space-separated list of dataset names
+#   OBJECTIVE — Versuch / training objective (e.g. score | mse). If set, passed
+#               as objective=${OBJECTIVE}; otherwise the config.yaml default is used.
 SWEEP="${SWEEP:-image/tune_${MODEL}_wl}"
+OBJECTIVE_ARG=()
+if [[ -n "${OBJECTIVE:-}" ]]; then
+  OBJECTIVE_ARG=("objective=${OBJECTIVE}")
+fi
 if [[ -n "${DATASETS:-}" ]]; then
   read -r -a DATASETS <<< "${DATASETS}"
 else
@@ -64,6 +70,7 @@ for dataset in "${DATASETS[@]}"; do
   HYDRA_FULL_ERROR=1 uv run main.py --multirun \
     +sweep="${SWEEP}" \
     dataset="${dataset}" \
+    "${OBJECTIVE_ARG[@]}" \
     "${extra[@]}" \
     mlflow_tracking_uri="${MLFLOW_TRACKING_URI}" \
     +experiment="${EXPERIMENT}"

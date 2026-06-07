@@ -1,0 +1,20 @@
+# @package _global_
+#
+# Versuch 2 — Score-as-loss (FAIR-Universe Leaderboard-Objective).
+#
+# Das Modell gibt 4 Werte aus: (mu_Om, mu_S8, log_sigma_Om, log_sigma_S8).
+# Trainiert wird gegen das Negative des "score_inference" (KL-Divergenz
+# zwischen wahrer und vorhergesagter Gauss-Posterior, mit lambda=1e3-Penalty
+# auf den Punktschaetzer). Der Trainer loggt zusaetzlich MSE auf mu, die
+# 68%-Coverage und den Codabench-Score (src/training/metrics.py).
+#
+# Labels bleiben 2-dimensional (Om, S8); nur der Modell-Head ist auf 4
+# verbreitert. Die score_inference-Loss splittet den 4-Vektor intern.
+dataset:
+  loss: score_inference
+  output_dim: 4
+  num_targets: 4
+
+# score_inference (lambda=1e3) braucht Gradient-Clipping, sonst NaN.
+training:
+  grad_clip: 1.0
