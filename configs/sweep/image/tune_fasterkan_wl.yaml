@@ -5,7 +5,7 @@ defaults:
   - override /training: adam
 
 training:
-  epochs: 6
+  epochs: 20
   grad_clip: 1.0  # score_inference (lam=1e3) needs clipping to avoid NaN
 
 hydra:
