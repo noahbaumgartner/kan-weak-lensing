@@ -1,0 +1,45 @@
+#!/bin/bash
+#SBATCH --time=5-00:00:00
+#SBATCH --job-name=kan_mlflow_server
+#SBATCH --ntasks=1
+#SBATCH --nodes=1
+#SBATCH --account=cai_ivs
+#SBATCH --partition=cpu
+#SBATCH --cpus-per-task=2
+#SBATCH --mem=4G
+#SBATCH --output=/cluster/home/baumgnoa/log/%j_%N_mlflow_server.out
+#SBATCH --error=/cluster/home/baumgnoa/log/%j_%N_mlflow_server.err
+#SBATCH --export=ALL
+
+# Standalone MLflow tracking server. Advertises its URL via a shared file so
+# that per-model tuning jobs can discover it.
+
+export PYTHONUNBUFFERED=1
+module load uv/0.10.10
+cd /cluster/home/baumgnoa/kan-weak-lensing
+
+export UV_PROJECT_ENVIRONMENT=/cluster/home/baumgnoa/kan-weak-lensing/.venv
+uv sync
+
+MLFLOW_HOST=$(hostname -f)
+MLFLOW_PORT=9299
+MLFLOW_DIR=/cluster/home/baumgnoa/kan-weak-lensing/mlflow
+URL_FILE=${MLFLOW_DIR}/server_url.txt
+mkdir -p "${MLFLOW_DIR}"
+
+TRACKING_URI="http://${MLFLOW_HOST}:${MLFLOW_PORT}"
+echo "${TRACKING_URI}" > "${URL_FILE}"
+echo "Wrote tracking URI to ${URL_FILE}: ${TRACKING_URI}"
+
+export MLFLOW_SERVER_ALLOWED_HOSTS="*"
+
+# Clean up URL file on exit so stale URLs don't mislead workers.
+trap 'rm -f "${URL_FILE}"' EXIT
+
+exec uv run mlflow server \
+  --host 0.0.0.0 \
+  --port ${MLFLOW_PORT} \
+  --backend-store-uri "sqlite:///${MLFLOW_DIR}/mlflow.db" \
+  --default-artifact-root "${MLFLOW_DIR}/artifacts"
+
+# Submit: sbatch scripts/mlflow_server.submit

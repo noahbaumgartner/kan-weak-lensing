@@ -1,0 +1,23 @@
+# @package _global_
+defaults:
+  - /sweep/tune_base
+  - override /model: wavkan
+  - override /training: adam
+
+training:
+  epochs: 6
+  grad_clip: 1.0  # score_inference (lam=1e3) needs clipping to avoid NaN
+
+hydra:
+  sweeper:
+    n_trials: 10
+    params:
+      optimizer: choice(adam, adamw)
+      model.wavelet_type: choice(mexican_hat, morlet, dog, meyer, shannon)
+      optimizer.lr: tag(log, interval(1e-5, 5e-3))
+      ++optimizer.weight_decay: tag(log, interval(1e-6, 1e-2))
+      # Image -> vector reduction. input_dim follows automatically via the
+      # reduced_dim resolver. Expand the choice() lists to search more.
+      dataset.reduction: choice(avgpool, kymatio)
+      dataset.pool_stride: choice(4, 8)
+      dataset.scattering_J: choice(2, 3)

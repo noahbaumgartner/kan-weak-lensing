@@ -1,0 +1,24 @@
+# @package _global_
+defaults:
+  - override /hydra/sweeper: optuna
+  - override /hydra/sweeper/sampler: tpe
+
+seed: 42
+
+training:
+  epochs: 500
+
+hydra:
+  sweeper:
+    sampler:
+      seed: ${seed}
+    direction: minimize
+
+    n_trials: 100
+    n_jobs: 1
+    params:
+      model.n_hidden_layers: range(${dataset.n_hidden_min}, ${dataset.n_hidden_max})
+      model.hidden_width_0: range(${dataset.hidden_width_min}, ${dataset.hidden_width_max})
+      model.hidden_width_1: range(${dataset.hidden_width_min}, ${dataset.hidden_width_max})
+      model.hidden_width_2: range(${dataset.hidden_width_min}, ${dataset.hidden_width_max})
+      model.hidden_width_3: range(${dataset.hidden_width_min}, ${dataset.hidden_width_max})

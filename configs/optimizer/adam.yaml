@@ -1,0 +1,2 @@
+_target_: src.optimizers.Adam
+lr: 1e-3

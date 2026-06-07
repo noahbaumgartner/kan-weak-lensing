@@ -1,0 +1,25 @@
+#!/bin/bash
+#SBATCH --time=3-00:00:00
+#SBATCH --job-name=kan_tune_kat_image
+#SBATCH --ntasks=1
+#SBATCH --nodes=1
+#SBATCH --account=cai_ivs
+#SBATCH --partition=gpu
+#SBATCH --gres=gpu:1
+#SBATCH --mem=8G
+#SBATCH --output=/cluster/home/baumgnoa/log/%j_%N_tune_kat_image.out
+#SBATCH --error=/cluster/home/baumgnoa/log/%j_%N_tune_kat_image.err
+#SBATCH --export=ALL
+
+# NOTE: KAT is a vision-transformer (KAN-based) classifier that assumes a
+# *square* input (img_size x img_size) with patch embedding. The weak-lensing
+# maps are 1424 x 176; the model/dataset configs still need adapting
+# (dataset.img_size, dataset.patch_size, square crop/resize, regression head)
+# before this sweep will run end-to-end.
+export MODEL=kat
+export SWEEP=image/tune_kat
+export DATASETS="${DATASETS:-weak_lensing}"
+
+source /cluster/home/baumgnoa/kan-weak-lensing/scripts/_tune_common.sh
+
+# Submit: sbatch --export=ALL,EXPERIMENT=<name> scripts/image/tune_kat.submit

@@ -1,0 +1,16 @@
+hydra:
+  run:
+    dir: .
+
+seed: 42
+mlflow_tracking_uri: http://127.0.0.1:9299
+
+trainer:
+  _target_: src.training.trainer.Trainer
+
+defaults:
+  - model: fastkan
+  - dataset: weak_lensing
+  - training: default
+  - optimizer: adam
+  - _self_
