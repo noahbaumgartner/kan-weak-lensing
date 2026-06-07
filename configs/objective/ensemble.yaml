@@ -1,0 +1,26 @@
+# @package _global_
+#
+# Versuch 3 — Deep Ensemble.
+#
+# Mehrere KANs (gleiche Architektur, unterschiedliche Init) werden je auf MSE
+# trainiert; die Streuung zwischen den Membern liefert die Standardabweichung
+# (Gauss-Annahme), der Mittelwert den Punktschaetzer. Ergebnis pro Parameter:
+# (mu, log_sigma) -> 4 Outputs, ausgewertet mit denselben Score-/Coverage-
+# Metriken wie objective=score.
+#
+# Dieser Versuch tauscht das Modell auf den Ensemble-Wrapper (siehe defaults).
+# Member-Architektur waehlen: member@model.member=<fastkan|fasterkan|wavkan>,
+# Anzahl Member: model.n_members=12 (o.ae.).
+defaults:
+  - override /model: ensemble
+
+dataset:
+  # Score-Logging-Pfad (Score + 68%-Coverage + MSE) im Trainer.
+  loss: score_inference
+  # Jeder Member sagt die 2 Parameter (Om, S8) voraus; der Ensemble-Head
+  # erzeugt daraus die 4 Werte (mu, log_sigma).
+  output_dim: 2
+  num_targets: 2
+
+training:
+  grad_clip: 1.0

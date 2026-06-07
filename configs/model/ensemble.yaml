@@ -1,0 +1,17 @@
+# Deep ensemble of KAN regressors. The member architecture is pulled in under
+# the `member` key from the (nesting-safe) member group (default: fastkan).
+# Change it with e.g.  member@model.member=wavkan
+# Each member predicts the 2 cosmological parameters; the ensemble turns the
+# spread between members into the (mu, log_sigma) Gaussian (see EnsembleModel).
+defaults:
+  - /member@member: fastkan
+  - _self_
+
+_target_: src.models.ensemble_model.EnsembleModel
+
+# Number of ensemble members (try 8, 12, ...). Sweepable.
+n_members: 8
+# Base seed; member i is initialised with seed_base + i.
+seed_base: 0
+# Lower bound on the per-parameter std (numerical floor for log_sigma).
+sigma_floor: 1e-3

@@ -1,0 +1,14 @@
+# Nesting-safe FasterKAN member for the ensemble (no ${model.*} self-refs).
+_target_: src.models.fasterkan_model.FasterKANModel
+layers_hidden: ${make_width:${dataset.input_dim},${dataset.output_dim},${dataset.n_hidden},${dataset.hidden_width_min},${dataset.hidden_width_min},${dataset.hidden_width_min},${dataset.hidden_width_min}}
+num_grids: 8
+exponent: 2
+inv_denominator: 0.5
+reduction: ${oc.select:dataset.reduction,none}
+pool_stride: ${oc.select:dataset.pool_stride,1}
+scattering_j: ${oc.select:dataset.scattering_J,3}
+scattering_l: ${oc.select:dataset.scattering_L,8}
+scattering_order: ${oc.select:dataset.scattering_order,2}
+img_height: ${oc.select:dataset.img_height,0}
+img_width: ${oc.select:dataset.img_width,0}
+in_chans: ${oc.select:dataset.in_chans,1}

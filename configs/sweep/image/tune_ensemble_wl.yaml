@@ -1,0 +1,37 @@
+# @package _global_
+#
+# Sweep für den Ensemble-Versuch. IMMER zusammen mit objective=ensemble laufen
+# lassen (setzt Modell=ensemble + score-Logging), z.B.:
+#   uv run python main.py --multirun +sweep=image/tune_ensemble_wl objective=ensemble
+# Der zugehörige Submit-Job (scripts/tune_ensemble_wl.submit) setzt OBJECTIVE
+# bereits automatisch.
+defaults:
+  - override /hydra/sweeper: optuna
+  - override /hydra/sweeper/sampler: tpe
+  - override /training: adam
+
+seed: 42
+
+training:
+  epochs: 6
+  grad_clip: 1.0  # score_inference (lam=1e3) needs clipping to avoid NaN
+
+hydra:
+  sweeper:
+    sampler:
+      seed: ${seed}
+    direction: minimize
+
+    n_trials: 10
+    n_jobs: 1
+    params:
+      # Anzahl Ensemble-Member — der Kern dieses Versuchs (8, 12, ... testen).
+      model.n_members: choice(4, 8, 12, 16)
+      # Member-Architektur (default fastkan) — Spline-Auflösung.
+      model.member.num_grids: range(4, 33)
+      optimizer: choice(adam, adamw)
+      optimizer.lr: tag(log, interval(1e-5, 5e-3))
+      ++optimizer.weight_decay: tag(log, interval(1e-6, 1e-2))
+      # Image -> vector reduction. input_dim folgt automatisch.
+      dataset.reduction: choice(avgpool, kymatio)
+      dataset.pool_stride: choice(4, 8)
