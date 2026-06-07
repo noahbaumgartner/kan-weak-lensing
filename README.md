@@ -38,10 +38,14 @@ Der Pfad zu den `.npy`-Dateien wird in `configs/dataset/weak_lensing.yaml`
 Ein *Versuch* = Trainings-Objective = Kombination aus Loss-Funktion und
 Modell-Head-Breite. Gewählt über die Hydra-Gruppe `configs/objective/`:
 
-| objective | Outputs | Loss             | Trainer-Pfad / Logging          |
-|-----------|---------|------------------|---------------------------------|
-| `score`   | 4       | `score_inference`| Score + 68%-Coverage + MSE(mu)  |
-| `mse`     | 2       | MSE              | MSE / RMSE / R²                 |
+| objective   | Outputs | Loss             | Trainer-Pfad / Logging          |
+|-------------|---------|------------------|---------------------------------|
+| `score`     | 4       | `score_inference`| Score + 68%-Coverage + MSE(mu)  |
+| `mse`       | 2       | MSE              | MSE / RMSE / R²                 |
+| `ensemble`  | 4*      | MSE pro Member   | Score + 68%-Coverage + MSE(mu)  |
+
+\* Beim Ensemble sagt jeder Member 2 Werte voraus; mu/log_sigma (4 Werte)
+entstehen aus Mittelwert/Streuung über die Member.
 
 ```bash
 # Versuch 1 — reine MSE-Regression auf (Om, S8)
@@ -49,7 +53,28 @@ uv run python main.py model=fastkan objective=mse
 
 # Versuch 2 — score-as-loss (Default)
 uv run python main.py model=fastkan objective=score
+
+# Versuch 3 — Deep Ensemble (mean/std über N Member = Gauss-Posterior)
+uv run python main.py objective=ensemble                       # 8 fastkan-Member
+uv run python main.py objective=ensemble model.n_members=12
+uv run python main.py objective=ensemble member@model.member=wavkan
 ```
+
+### Ensemble-Versuch im Detail
+
+Mehrere KANs mit unterschiedlicher Init werden je auf MSE trainiert; die
+Streuung zwischen den Membern liefert σ (Gauss-Annahme), der Mittelwert den
+Punktschätzer. So bekommt der Ensemble-Versuch dieselben Score-/Coverage-
+Metriken wie `score`, ohne σ direkt zu lernen.
+
+Stellschrauben: `model.n_members` (8, 12, …), `model.seed_base`,
+Member-Architektur via `member@model.member=<fastkan|fasterkan|wavkan>`
+(`configs/member/`), Member-Hyperparameter via `model.member.*`. Sweep:
+`configs/sweep/image/tune_ensemble_wl.yaml` (sweept u.a. `n_members`).
+
+Noch *nicht* enthalten ist der dritte Vorschlag (Samples direkt in den
+Probability-Space mappen via spatial NN / Normalizing Flow) — das ist ein
+eigener, größerer Versuch.
 
 Der Datensatz behält immer die 2 Labels (Om, S8); pro Versuch ändert sich nur
 der Head (`output_dim`) und der Loss — der Trainer wählt den passenden
