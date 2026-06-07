@@ -21,4 +21,4 @@ export DATASETS="${DATASETS:-weak_lensing}"
 
 source /cluster/home/baumgnoa/kan-weak-lensing/scripts/_tune_common.sh
 
-# Submit: sbatch --export=ALL,EXPERIMENT=<name> scripts/image/tune_kkan.submit
+# Submit: sbatch --export=ALL,EXPERIMENT=<name> scripts/tune_kkan.submit

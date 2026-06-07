@@ -16,4 +16,4 @@ export SWEEP=image/tune_fastkan_wl
 export DATASETS="${DATASETS:-weak_lensing}"
 source /cluster/home/baumgnoa/kan-weak-lensing/scripts/_tune_common.sh
 
-# Submit: sbatch --export=ALL,EXPERIMENT=<name> scripts/image/tune_fastkan_wl.submit
+# Submit: sbatch --export=ALL,EXPERIMENT=<name> scripts/tune_fastkan_wl.submit

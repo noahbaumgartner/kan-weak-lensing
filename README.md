@@ -18,10 +18,10 @@ uv sync
 
 ```bash
 # fastkan auf weak_lensing, lokaler MLflow-File-Store (./mlruns)
-./scripts/image/run_local.sh
+./scripts/run_local.sh
 
 # anderes Modell / Hydra-Overrides
-MODEL=fasterkan ./scripts/image/run_local.sh training.epochs=5 model.num_grids=16
+MODEL=fasterkan ./scripts/run_local.sh training.epochs=5 model.num_grids=16
 ```
 
 Direkt über Hydra:
@@ -54,7 +54,7 @@ den Optuna/TPE-Sweeper; die modell-spezifischen Sweeps erben davon.
 uv run python main.py --multirun +sweep=image/tune_fastkan_wl dataset=weak_lensing
 
 # Alle MLP-artigen KANs auf dem Cluster submitten (fastkan, fasterkan, wavkan)
-./scripts/image/submit_all_wl.sh <experiment_name>
+./scripts/submit_all_wl.sh <experiment_name>
 ```
 
 ## Struktur
