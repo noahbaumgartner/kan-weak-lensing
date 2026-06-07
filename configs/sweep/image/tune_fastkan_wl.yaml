@@ -16,8 +16,6 @@ hydra:
       model.num_grids: range(4, 51)
       optimizer.lr: tag(log, interval(1e-5, 5e-3))
       ++optimizer.weight_decay: tag(log, interval(1e-6, 1e-2))
-      # Image -> vector reduction. input_dim follows automatically via the
-      # reduced_dim resolver. Expand the choice() lists to search more.
-      dataset.reduction: choice(avgpool, kymatio)
-      dataset.pool_stride: choice(4, 8)
-      dataset.scattering_J: choice(2, 3)
+# Image -> vector reduction (avgpool | kymatio) is NOT swept: pass it to the
+# submit job via REDUCTION=... (default avgpool). pool_stride / scattering_J
+# come from configs/dataset/weak_lensing.yaml.

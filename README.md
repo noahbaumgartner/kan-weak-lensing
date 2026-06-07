@@ -22,6 +22,9 @@ uv sync
 
 # anderes Modell / Hydra-Overrides
 MODEL=fasterkan ./scripts/run_local.sh training.epochs=5 model.num_grids=16
+
+# Reduction waehlen (Default avgpool)
+REDUCTION=kymatio ./scripts/run_local.sh
 ```
 
 Direkt über Hydra:
@@ -100,19 +103,22 @@ Setup identisch zu `kan-lab`. Tracking-URI Default: `http://127.0.0.1:9299`
 ## Sweeping (Optuna)
 
 Sweep-Konfigurationen liegen unter `configs/sweep/`. `tune_base.yaml` definiert
-den Optuna/TPE-Sweeper; die modell-spezifischen Sweeps erben davon.
+den Optuna/TPE-Sweeper; die modell-spezifischen Sweeps erben davon. Die
+Reduction (`avgpool` | `kymatio`) ist **nicht** Teil des Sweeps, sondern wird
+fix pro Job über `REDUCTION` mitgegeben (Default `avgpool`).
 
 ```bash
 # Einzelnen Sweep lokal laufen lassen (Default-objective aus config.yaml = score)
 uv run python main.py --multirun +sweep=image/tune_fastkan_wl dataset=weak_lensing
 
-# Sweep mit anderem Versuch
-uv run python main.py --multirun +sweep=image/tune_fastkan_wl objective=mse
+# Sweep mit anderem Versuch / anderer Reduction
+uv run python main.py --multirun +sweep=image/tune_fastkan_wl objective=mse dataset.reduction=kymatio
 
 # Alle MLP-artigen KANs auf dem Cluster submitten (fastkan, fasterkan, wavkan)
 ./scripts/submit_all_wl.sh <experiment_name>
-# anderer Versuch im Sweep: OBJECTIVE-Env an den Submit-Job geben, z.B.
+# Versuch / Reduction im Sweep: per Env an den Submit-Job geben, z.B.
 sbatch --export=ALL,EXPERIMENT=wl_mse,OBJECTIVE=mse scripts/tune_fastkan_wl.submit
+sbatch --export=ALL,EXPERIMENT=wl_scat,REDUCTION=kymatio scripts/tune_fastkan_wl.submit
 ```
 
 ## Struktur

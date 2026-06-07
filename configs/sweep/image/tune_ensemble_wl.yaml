@@ -32,6 +32,6 @@ hydra:
       optimizer: choice(adam, adamw)
       optimizer.lr: tag(log, interval(1e-5, 5e-3))
       ++optimizer.weight_decay: tag(log, interval(1e-6, 1e-2))
-      # Image -> vector reduction. input_dim folgt automatisch.
-      dataset.reduction: choice(avgpool, kymatio)
-      dataset.pool_stride: choice(4, 8)
+# Image -> vector reduction (avgpool | kymatio) wird NICHT gesweept: per
+# REDUCTION=... an den Submit-Job geben (Default avgpool). pool_stride /
+# scattering_J kommen aus configs/dataset/weak_lensing.yaml.
