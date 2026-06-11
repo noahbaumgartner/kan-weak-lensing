@@ -78,6 +78,7 @@ class WeakLensingDataset:
         ng: float = 30.0,
         pixel_size_arcmin: float = 2.0,
         standardize: bool = True,
+        standardize_labels: bool = True,
         **kwargs,
     ):
         self.data_dir = data_dir
@@ -88,6 +89,7 @@ class WeakLensingDataset:
         self.ng = ng
         self.pixel_size_arcmin = pixel_size_arcmin
         self.standardize = standardize
+        self.standardize_labels = standardize_labels
 
         self.kappa_file = "WIDE12H_bin2_2arcmin_kappa.npy"
         self.label_file = "label.npy"
@@ -143,7 +145,7 @@ class WeakLensingDataset:
 
         input_stats = self._estimate_input_stats(train_kappa, mask) if self.standardize else None
 
-        if self.standardize:
+        if self.standardize_labels:
             label_mean = train_y.mean(axis=0).astype(np.float32)
             label_std = train_y.std(axis=0).astype(np.float32)
             label_std = np.where(label_std > 1e-8, label_std, 1.0).astype(np.float32)
