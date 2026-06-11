@@ -32,11 +32,10 @@ img_width: 176
 in_chans: 1
 
 # MLP-style KANs flatten the input, so the 1424x176 map is reduced first.
-# reduction: avgpool | kymatio | conv | powerspectrum | none.
+# reduction: avgpool | kymatio | conv | none.
 #   avgpool        2D scattering-free fixed-stride pooling, then flatten.
 #   kymatio        2D wavelet scattering transform (spatial dims global-avg-pooled).
 #   conv           learnable strided-conv encoder + global-avg-pool (asymmetric stride).
-#   powerspectrum  radially-binned 2D FFT power (discrete angular power spectrum / C_l).
 # input_dim is derived from the active method+params so it always matches the
 # runtime ReductionWrapper. Default avgpool/stride=8 -> 178*22 = 3916 px.
 reduction: avgpool
@@ -51,10 +50,7 @@ conv_layers: 2
 conv_stride_h: 4
 conv_stride_w: 2
 conv_kernel: 3
-# power spectrum: number of radial |k| bins (the C_l coefficients fed to the KAN).
-ps_bins: 32
-ps_log: true
-input_dim: ${reduced_dim:${dataset.reduction},${dataset.img_height},${dataset.img_width},${dataset.in_chans},${dataset.pool_stride},${dataset.scattering_J},${dataset.scattering_L},${dataset.scattering_order},${dataset.conv_channels},${dataset.ps_bins}}
+input_dim: ${reduced_dim:${dataset.reduction},${dataset.img_height},${dataset.img_width},${dataset.in_chans},${dataset.pool_stride},${dataset.scattering_J},${dataset.scattering_L},${dataset.scattering_order},${dataset.conv_channels}}
 
 # Width / depth knobs consumed by the MLP-style model configs
 # (fastkan / fasterkan / wavkan) via make_width and the sweep ranges.
