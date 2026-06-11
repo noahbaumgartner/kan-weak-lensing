@@ -4,7 +4,7 @@ KAN-Architekturvergleich auf dem FAIR-Universe **Weak Lensing** Datensatz.
 Ausgelagert aus `kan-lab`, damit der Weak-Lensing-Teil eigenständig
 weiterentwickelt werden kann.
 
-Übernommene Modelle: **fastkan**, **fasterkan**, **wavkan**, **kkan**, **kat**.
+Übernommene Modelle: **fastkan**, **fasterkan**, **efficientkan**, **wavkan**, **kkan**, **kat**.
 
 ## Setup (uv)
 
@@ -71,7 +71,7 @@ Punktschätzer. So bekommt der Ensemble-Versuch dieselben Score-/Coverage-
 Metriken wie `score`, ohne σ direkt zu lernen.
 
 Stellschrauben: `model.n_members` (8, 12, …), `model.seed_base`,
-Member-Architektur via `member@model.member=<fastkan|fasterkan|wavkan>`
+Member-Architektur via `member@model.member=<fastkan|fasterkan|efficientkan|wavkan>`
 (`configs/member/`), Member-Hyperparameter via `model.member.*`. Sweep:
 `configs/sweep/image/tune_ensemble_wl.yaml` (sweept u.a. `n_members`).
 
@@ -129,7 +129,7 @@ configs/                    Hydra-Configs (config, model, dataset, objective, op
   objective/                Versuche: score (4 out, score-loss) / mse (2 out, MSE)
 src/
   dataset.py                WeakLensingDataset (einziger Datensatz)
-  models/                   Modell-Wrapper (fastkan, fasterkan, wavkan, kkan, kat) + base
+  models/                   Modell-Wrapper (fastkan, fasterkan, efficientkan, wavkan, kkan, kat) + base
   modules/                  KAN-Implementierungen + reduction (image -> vector)
   optimizers/               Adam, AdamW, SGD, LBFGS
   training/                 Trainer + Weak-Lensing-Scoring (metrics.py)
@@ -138,9 +138,9 @@ scripts/                    MLflow-Server + SLURM/lokale Tuning-Jobs
 
 ## Hinweis zu kkan / kat
 
-`fastkan`, `fasterkan` und `wavkan` reduzieren die 1424×176-Maps (avgpool /
-kymatio) und laufen direkt auf Weak Lensing — fertige Sweeps:
-`configs/sweep/image/tune_{fastkan,fasterkan,wavkan}_wl.yaml`.
+`fastkan`, `fasterkan`, `efficientkan` und `wavkan` reduzieren die 1424×176-Maps
+(avgpool / kymatio / conv / powerspectrum) und laufen direkt auf Weak Lensing —
+fertige Sweeps: `configs/sweep/image/tune_{fastkan,fasterkan,efficientkan,wavkan}_wl.yaml`.
 
 `kkan` (Conv-KAN) und `kat` (KAN-ViT) wurden in `kan-lab` auf **quadratischen
 Klassifikations-Bildern** (MNIST etc.) verwendet. Sie sind hier vollständig

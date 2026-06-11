@@ -5,9 +5,9 @@
 # is needed. Set MLFLOW_TRACKING_URI to log to a running server instead.
 #
 # Knobs (all optional, set as env vars):
-#   MODEL      single-model architecture (fastkan | fasterkan | wavkan | kkan | kat)
+#   MODEL      single-model architecture (fastkan | fasterkan | efficientkan | wavkan | kkan | kat)
 #   OBJECTIVE  Versuch (score | mse | ensemble)
-#   REDUCTION  image->vector reduction, avgpool | kymatio (default: avgpool)
+#   REDUCTION  image->vector reduction, avgpool | kymatio | conv | powerspectrum (default: avgpool)
 #   DATASET    dataset config name (default: weak_lensing)
 #
 # IMPORTANT: for objective=ensemble do NOT set MODEL — the ensemble objective

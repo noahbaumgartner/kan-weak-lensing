@@ -1,13 +1,21 @@
 from .base import BaseKANModel
-from src.modules.wavkan.kan import KAN
+from src.modules.efficientkan import KAN
 from src.modules.reduction import ReductionWrapper
 
 
-class WavKANModel(BaseKANModel):
+class EfficientKANModel(BaseKANModel):
+    """B-spline KAN (Blealtan/efficient-kan) with the shared image reduction.
+
+    Closest of the MLP-style models to the original KAN paper: a real B-spline
+    basis (``grid_size`` knots, ``spline_order`` k) plus an L1/entropy
+    regularisation on the spline weights (see ``regularization_loss``).
+    """
+
     def __init__(
         self,
         layers_hidden,
-        wavelet_type="mexican_hat",
+        grid_size=5,
+        k=3,
         reduction="none",
         pool_stride=1,
         scattering_j=3,
@@ -26,7 +34,10 @@ class WavKANModel(BaseKANModel):
         **kwargs,
     ):
         self.layers_hidden = layers_hidden
-        self.wavelet_type = wavelet_type
+        self.grid_size = grid_size
+        self.k = k
+        # Image -> vector reduction applied to 2D inputs (e.g. weak_lensing)
+        # before flattening. Defaults to a no-op passthrough for tabular/1D.
         self.reduction = dict(
             method=reduction,
             in_chans=in_chans,
@@ -48,7 +59,12 @@ class WavKANModel(BaseKANModel):
     def build(self, device="cpu"):
         kan = KAN(
             layers_hidden=list(self.layers_hidden),
-            wavelet_type=self.wavelet_type,
+            grid_size=self.grid_size,
+            spline_order=self.k,
+            grid_range=[-3, 3],
         )
         self.model = ReductionWrapper(kan, **self.reduction).to(device)
         self.device = device
+
+    def regularization_loss(self):
+        return self.model.regularization_loss()

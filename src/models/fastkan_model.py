@@ -15,6 +15,13 @@ class FastKANModel(BaseKANModel):
         scattering_j=3,
         scattering_l=8,
         scattering_order=2,
+        conv_channels=64,
+        conv_layers=2,
+        conv_stride_h=4,
+        conv_stride_w=2,
+        conv_kernel=3,
+        ps_bins=32,
+        ps_log=True,
         img_height=0,
         img_width=0,
         in_chans=1,
@@ -33,6 +40,13 @@ class FastKANModel(BaseKANModel):
             scattering_j=scattering_j,
             scattering_l=scattering_l,
             scattering_order=scattering_order,
+            conv_channels=conv_channels,
+            conv_layers=conv_layers,
+            conv_stride_h=conv_stride_h,
+            conv_stride_w=conv_stride_w,
+            conv_kernel=conv_kernel,
+            ps_bins=ps_bins,
+            ps_log=ps_log,
         )
 
     def build(self, device="cpu"):

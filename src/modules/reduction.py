@@ -5,6 +5,19 @@ A KAN's first-layer width is fixed at config-compose time from
 ``ReductionWrapper``. Both go through :func:`reduced_dim` so they always agree:
 change the reduction method/params and the config width and runtime module move
 together.
+
+Available methods (set via ``dataset.reduction``):
+
+* ``avgpool``        — fixed-stride average pooling, then flatten.
+* ``kymatio``        — 2D wavelet scattering transform; spatial dims are
+  global-average-pooled, leaving one feature per scattering coefficient.
+* ``conv``           — a small learnable strided-conv stack with an asymmetric
+  stride (larger along the bigger image dimension) followed by global average
+  pooling, leaving one feature per output channel. (Dozenten-Vorschlag 1.)
+* ``powerspectrum``  — radially-binned 2D FFT power spectrum (a discretised
+  angular power spectrum / C_l estimate), one feature per radial bin per
+  channel. (Dozenten-Vorschlag 2 — basis-function decomposition.)
+* ``none``           — flatten the full image (or pass tabular input through).
 """
 from __future__ import annotations
 
@@ -32,6 +45,8 @@ def reduced_dim(
     scattering_j: int = 3,
     scattering_l: int = 8,
     scattering_order: int = 2,
+    conv_channels: int = 64,
+    ps_bins: int = 32,
 ) -> int:
     """Flat feature count produced by ``method`` on an ``(in_chans, h, w)`` image."""
     h, w, in_chans = int(h), int(w), int(in_chans)
@@ -41,6 +56,13 @@ def reduced_dim(
         # Spatial output is global-average-pooled away, leaving one feature per
         # scattering coefficient per input channel.
         return in_chans * num_scattering_coeffs(scattering_j, scattering_l, scattering_order)
+    if method == "conv":
+        # The conv stack ends in global average pooling, so the feature count is
+        # just the number of output channels (independent of input H/W/stride).
+        return int(conv_channels)
+    if method == "powerspectrum":
+        # One radial bin per channel.
+        return in_chans * int(ps_bins)
     if method == "none":
         return in_chans * h * w
     raise ValueError(f"unknown reduction method: {method!r}")
@@ -64,11 +86,21 @@ class ReductionWrapper(nn.Module):
         scattering_j: int = 3,
         scattering_l: int = 8,
         scattering_order: int = 2,
+        conv_channels: int = 64,
+        conv_layers: int = 2,
+        conv_stride_h: int = 4,
+        conv_stride_w: int = 2,
+        conv_kernel: int = 3,
+        ps_bins: int = 32,
+        ps_log: bool = True,
     ):
         super().__init__()
         self.method = method
         self.kan = kan
         self.flatten = nn.Flatten()
+        self.pool = None
+        self.scattering = None
+        self.conv = None
 
         if method == "avgpool":
             self.pool = (
@@ -76,7 +108,6 @@ class ReductionWrapper(nn.Module):
                 if pool_stride > 1
                 else nn.Identity()
             )
-            self.scattering = None
         elif method == "kymatio":
             # Import the 2D torch frontend directly: ``kymatio.torch`` also pulls
             # in the 3D filter bank, which needs scipy.special.sph_harm (removed
@@ -85,16 +116,56 @@ class ReductionWrapper(nn.Module):
                 ScatteringTorch2D as Scattering2D,
             )
 
-            self.pool = None
             self.scattering = Scattering2D(
                 J=int(scattering_j),
                 shape=(int(img_height), int(img_width)),
                 L=int(scattering_l),
                 max_order=int(scattering_order),
             )
+        elif method == "conv":
+            # Learnable strided-conv encoder. The stride is asymmetric — larger
+            # along whichever spatial axis is bigger — to compress the elongated
+            # 1424x176 maps roughly isotropically before global average pooling.
+            self.conv = _build_conv_encoder(
+                in_chans=int(in_chans),
+                out_channels=int(conv_channels),
+                n_layers=int(conv_layers),
+                stride_h=int(conv_stride_h),
+                stride_w=int(conv_stride_w),
+                kernel=int(conv_kernel),
+            )
+        elif method == "powerspectrum":
+            self.ps_log = bool(ps_log)
+            self._init_powerspectrum(int(img_height), int(img_width), int(ps_bins))
         else:  # none -> passthrough
             self.pool = nn.Identity()
-            self.scattering = None
+
+    def _init_powerspectrum(self, h: int, w: int, n_bins: int) -> None:
+        """Precompute the radial-frequency -> bin map for an ``rfft2`` of (h, w)."""
+        self.ps_bins = n_bins
+        fy = torch.fft.fftfreq(h).view(-1, 1)        # (H, 1)
+        fx = torch.fft.rfftfreq(w).view(1, -1)       # (1, W//2+1)
+        kr = torch.sqrt(fy * fy + fx * fx)           # radial frequency |k|
+        kmax = kr.max().clamp_min(1e-12)
+        # Linear bins in |k|; the highest frequency lands in the last bin.
+        idx = torch.clamp((kr / kmax * n_bins).long(), max=n_bins - 1)
+        counts = torch.bincount(idx.reshape(-1), minlength=n_bins).clamp_min(1)
+        # Buffers so they move with .to(device) and are saved in the state dict.
+        self.register_buffer("ps_idx", idx.reshape(-1), persistent=False)
+        self.register_buffer("ps_counts", counts.float(), persistent=False)
+
+    def _power_spectrum(self, x: torch.Tensor) -> torch.Tensor:
+        """(B, C, H, W) -> (B, C * ps_bins) radially-averaged FFT power."""
+        b, c = x.shape[0], x.shape[1]
+        spec = torch.fft.rfft2(x.float())            # (B, C, H, W//2+1)
+        power = (spec.real ** 2 + spec.imag ** 2).reshape(b, c, -1)  # (B, C, n_freq)
+        out = power.new_zeros(b, c, self.ps_bins)
+        idx = self.ps_idx.view(1, 1, -1).expand(b, c, -1)
+        out.scatter_add_(2, idx, power)              # sum power per radial bin
+        out = out / self.ps_counts.view(1, 1, -1)    # -> mean power per bin (C_l)
+        if self.ps_log:
+            out = torch.log(out + 1e-8)              # tame the huge dynamic range
+        return out.reshape(b, c * self.ps_bins)
 
     def forward(self, x):
         if x.dim() == 4:  # (B, C, H, W)
@@ -102,9 +173,43 @@ class ReductionWrapper(nn.Module):
                 # (B, C, H, W) -> (B, C, P, h', w') -> global-avg -> (B, C*P)
                 x = self.scattering(x)
                 x = x.mean(dim=(-1, -2))
+            elif self.method == "conv":
+                # (B, C, H, W) -> conv stack -> global-avg -> (B, conv_channels, 1, 1)
+                x = self.conv(x)
+            elif self.method == "powerspectrum":
+                x = self._power_spectrum(x)          # already (B, C*ps_bins)
             else:
                 x = self.pool(x)
         return self.kan(self.flatten(x))
 
     def regularization_loss(self, *args, **kwargs):
         return self.kan.regularization_loss(*args, **kwargs)
+
+
+def _build_conv_encoder(
+    in_chans: int,
+    out_channels: int,
+    n_layers: int,
+    stride_h: int,
+    stride_w: int,
+    kernel: int,
+) -> nn.Module:
+    """Strided Conv2d -> BatchNorm -> SiLU stack ending in global average pooling."""
+    layers: list[nn.Module] = []
+    c_in = in_chans
+    pad = kernel // 2
+    for _ in range(max(1, n_layers)):
+        layers += [
+            nn.Conv2d(
+                c_in,
+                out_channels,
+                kernel_size=kernel,
+                stride=(stride_h, stride_w),
+                padding=pad,
+            ),
+            nn.BatchNorm2d(out_channels),
+            nn.SiLU(),
+        ]
+        c_in = out_channels
+    layers.append(nn.AdaptiveAvgPool2d(1))  # asymmetric input -> (C, 1, 1)
+    return nn.Sequential(*layers)

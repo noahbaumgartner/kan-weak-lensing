@@ -9,6 +9,13 @@ pool_stride: ${oc.select:dataset.pool_stride,1}
 scattering_j: ${oc.select:dataset.scattering_J,3}
 scattering_l: ${oc.select:dataset.scattering_L,8}
 scattering_order: ${oc.select:dataset.scattering_order,2}
+conv_channels: ${oc.select:dataset.conv_channels,64}
+conv_layers: ${oc.select:dataset.conv_layers,2}
+conv_stride_h: ${oc.select:dataset.conv_stride_h,4}
+conv_stride_w: ${oc.select:dataset.conv_stride_w,2}
+conv_kernel: ${oc.select:dataset.conv_kernel,3}
+ps_bins: ${oc.select:dataset.ps_bins,32}
+ps_log: ${oc.select:dataset.ps_log,true}
 img_height: ${oc.select:dataset.img_height,0}
 img_width: ${oc.select:dataset.img_width,0}
 in_chans: ${oc.select:dataset.in_chans,1}
