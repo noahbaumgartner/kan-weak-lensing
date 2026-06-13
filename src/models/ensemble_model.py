@@ -4,28 +4,43 @@ import copy
 
 import torch
 from torch import nn
-from torch.utils.data import DataLoader, Dataset, TensorDataset
+from torch.utils.data import DataLoader, Dataset, Subset, TensorDataset
 from tqdm import tqdm
 
 from .base import BaseKANModel
 
 
 class EnsembleModel(BaseKANModel):
-    """Deep ensemble of KAN regressors → Gaussian posterior.
+    """Bagging ensemble of KAN regressors → Gaussian posterior.
 
     Versuch "ensemble": train ``n_members`` independent member models with the
-    *same* architecture but *different* random initialisation, each on plain
-    MSE against the cosmological parameters (Om, S8). At eval / predict time the
-    member point-predictions are combined into a Gaussian:
+    *same* architecture, each on plain MSE against the cosmological parameters
+    (Om, S8). Crucially, each member is trained on its *own random subset* of
+    the training data (resampling / bagging), so the members are approximately
+    independent draws from the sampling distribution of the estimator. At eval
+    / predict time the member point-predictions are combined into a Gaussian:
 
         mu        = mean over members      (per parameter)
         log_sigma = log(std over members)  (per parameter)
 
-    i.e. the spread between the differently-initialised members *is* the
-    predicted uncertainty (Gaussian assumption). ``predict`` returns the
-    4-vector ``[mu_Om, mu_S8, log_sigma_Om, log_sigma_S8]`` expected by the
+    Because each member sees different data, the spread between members
+    estimates how much the prediction would change under a different training
+    set — i.e. the std *is* a statistically grounded predictive uncertainty
+    (Gaussian assumption), not merely initialisation noise. ``predict`` returns
+    the 4-vector ``[mu_Om, mu_S8, log_sigma_Om, log_sigma_S8]`` expected by the
     FAIR-Universe score / 68%-coverage metrics, so this plugs straight into the
     score-style logging path of the Trainer.
+
+    Data resampling per member is controlled by:
+        ``subset_fraction`` — fraction of the training set each member sees
+                              (subsampling without replacement; ignored when
+                              ``bootstrap=True``).
+        ``bootstrap``       — if True, draw a full-size sample *with*
+                              replacement instead (classic bootstrap bagging;
+                              each member sees ~63% unique points).
+    Member i draws its subset with seed ``subset_seed + i`` (and is also
+    initialised with ``seed_base + i``), so diversity comes from both the data
+    and the init while staying fully reproducible.
 
     The member is any ordinary single-model wrapper (default: FastKANModel),
     supplied already-constructed via Hydra and cloned ``n_members`` times.
@@ -37,6 +52,9 @@ class EnsembleModel(BaseKANModel):
         n_members: int = 8,
         seed_base: int = 0,
         sigma_floor: float = 1e-3,
+        subset_fraction: float = 0.8,
+        bootstrap: bool = False,
+        subset_seed: int = 0,
         **kwargs,
     ):
         # ``member`` is an un-built BaseKANModel wrapper (model is still None);
@@ -45,6 +63,9 @@ class EnsembleModel(BaseKANModel):
         self.n_members = int(n_members)
         self.seed_base = int(seed_base)
         self.sigma_floor = float(sigma_floor)
+        self.subset_fraction = float(subset_fraction)
+        self.bootstrap = bool(bootstrap)
+        self.subset_seed = int(subset_seed)
         self.members: list[BaseKANModel] = []
         self.model: nn.Module | None = None
 
@@ -96,12 +117,15 @@ class EnsembleModel(BaseKANModel):
         grad_clip=None,
         **kwargs,
     ):
-        """Train all members on MSE; log score-style metrics on the val set.
+        """Train each member on its own data subset; log score-style metrics.
 
-        Each member is trained on its own MSE; the per-batch objective is the
-        sum of member MSEs, so members stay independent (their parameter sets
-        don't interact) and diversity comes from the different inits. The val
-        metrics are computed on the *combined* Gaussian prediction, reusing the
+        Every member is trained independently on plain MSE, but over a
+        *different random subset* of the training set (subsampling, or
+        bootstrap resampling when ``bootstrap=True``). Members therefore differ
+        in both their data and their init, which is what lets the eval-time
+        spread between members be read as a real predictive standard deviation
+        (bagging) rather than mere initialisation noise. The val metrics are
+        computed on the *combined* Gaussian prediction, reusing the
         Trainer-supplied ``loss_fn`` (score_inference) and
         ``extra_eval_metrics_fn`` (eval_metric_sums) for full consistency with
         the single-model score Versuch.
@@ -129,7 +153,27 @@ class EnsembleModel(BaseKANModel):
         if nw > 0:
             loader_kwargs["persistent_workers"] = True
             loader_kwargs["prefetch_factor"] = int(kwargs.get("prefetch_factor", 4))
-        train_loader = DataLoader(train_ds, batch_size=bs, shuffle=True, **loader_kwargs)
+
+        # --- per-member data subsets (bagging) ---
+        # Each member sees its own resample of the training set so the members
+        # are approximately independent estimators; their eval-time spread is
+        # then a statistically grounded uncertainty.
+        member_loaders = []
+        for i in range(self.n_members):
+            gen = torch.Generator().manual_seed(self.subset_seed + i)
+            if self.bootstrap:
+                # full-size sample with replacement (~63% unique points)
+                member_idx = torch.randint(0, n_train, (n_train,), generator=gen)
+            else:
+                # random fraction without replacement
+                k = max(1, int(round(n_train * self.subset_fraction)))
+                member_idx = torch.randperm(n_train, generator=gen)[:k]
+            member_ds = Subset(train_ds, member_idx.tolist())
+            n_sub = len(member_ds)
+            sub_bs = n_sub if (batch_size == -1 or batch_size >= n_sub) else batch_size
+            member_loaders.append(
+                DataLoader(member_ds, batch_size=sub_bs, shuffle=True, **loader_kwargs)
+            )
         val_loader = DataLoader(val_ds, batch_size=bs, shuffle=False, **loader_kwargs)
 
         opt = optimizer_factory(self.model.parameters())
@@ -145,26 +189,28 @@ class EnsembleModel(BaseKANModel):
         extra_metric_keys: list[str] = []
 
         for epoch in tqdm(range(epochs), desc="Training (ensemble)"):
-            # --- train: each member on its own MSE ---
+            # --- train: each member on its own data subset / MSE ---
             self.model.train()
-            train_loss_sum = torch.zeros((), device=device)
-            train_total = 0
-            for x, y in train_loader:
-                x = x.to(device, non_blocking=True)
-                y = y.to(device, non_blocking=True)
-                opt.zero_grad(set_to_none=True)
-                batch_loss = torch.zeros((), device=device)
-                for m in self.members:
-                    batch_loss = batch_loss + mse(m.predict(x), y)
-                batch_loss.backward()
-                if clip is not None:
-                    torch.nn.utils.clip_grad_norm_(self.model.parameters(), clip)
-                opt.step()
-                bs_x = x.shape[0]
-                # report the mean per-member MSE (comparable to single-model runs)
-                train_loss_sum = train_loss_sum + (batch_loss.detach() / self.n_members) * bs_x
-                train_total += bs_x
-            train_mse = (train_loss_sum / train_total).item()
+            member_mse_sum = torch.zeros((), device=device)
+            for m, m_loader in zip(self.members, member_loaders):
+                loss_sum = torch.zeros((), device=device)
+                seen = 0
+                for x, y in m_loader:
+                    x = x.to(device, non_blocking=True)
+                    y = y.to(device, non_blocking=True)
+                    opt.zero_grad(set_to_none=True)
+                    # only this member's params receive gradients this step
+                    batch_loss = mse(m.predict(x), y)
+                    batch_loss.backward()
+                    if clip is not None:
+                        torch.nn.utils.clip_grad_norm_(m.get_model().parameters(), clip)
+                    opt.step()
+                    bs_x = x.shape[0]
+                    loss_sum = loss_sum + batch_loss.detach() * bs_x
+                    seen += bs_x
+                member_mse_sum = member_mse_sum + loss_sum / max(seen, 1)
+            # report the mean per-member training MSE (comparable to single-model runs)
+            train_mse = (member_mse_sum / self.n_members).item()
 
             # --- validate on the combined Gaussian prediction ---
             self.model.eval()

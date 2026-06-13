@@ -1,8 +1,9 @@
-# Deep ensemble of KAN regressors. The member architecture is pulled in under
-# the `member` key from the (nesting-safe) member group (default: fastkan).
-# Change it with e.g.  member@model.member=wavkan
-# Each member predicts the 2 cosmological parameters; the ensemble turns the
-# spread between members into the (mu, log_sigma) Gaussian (see EnsembleModel).
+# Bagging ensemble of KAN regressors. The member architecture is pulled in
+# under the `member` key from the (nesting-safe) member group (default:
+# fastkan). Change it with e.g.  member@model.member=wavkan
+# Each member is trained on its own random subset of the training data and
+# predicts the 2 cosmological parameters; the ensemble turns the spread between
+# members into the (mu, log_sigma) Gaussian (see EnsembleModel).
 defaults:
   - /member@member: fastkan
   - _self_
@@ -15,3 +16,12 @@ n_members: 8
 seed_base: 0
 # Lower bound on the per-parameter std (numerical floor for log_sigma).
 sigma_floor: 1e-3
+# Fraction of the training set each member is trained on (subsampling without
+# replacement). This data resampling is what makes the member spread a valid
+# uncertainty estimate. Ignored when bootstrap=True.
+subset_fraction: 0.8
+# If true, draw a full-size sample *with* replacement per member instead
+# (classic bootstrap bagging; ~63% unique points per member).
+bootstrap: false
+# Base seed for the per-member data resample; member i uses subset_seed + i.
+subset_seed: 0
