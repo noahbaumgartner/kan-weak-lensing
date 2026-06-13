@@ -1,0 +1,59 @@
+#!/bin/bash
+#SBATCH --time=04:00:00
+#SBATCH --job-name=kan_smoke_test_all
+#SBATCH --ntasks=1
+#SBATCH --nodes=1
+#SBATCH --account=cai_ivs
+#SBATCH --partition=gpu
+#SBATCH --gres=gpu:1
+#SBATCH --mem=64G
+#SBATCH --output=/cluster/home/baumgnoa/log/%j_%N_smoke_test_all.out
+#SBATCH --error=/cluster/home/baumgnoa/log/%j_%N_smoke_test_all.err
+#SBATCH --export=ALL
+#
+# Smoke-test every model/reduction briefly on the GPU partition via SLURM.
+# Trains each model for a short budget (EPOCHS, default 2) to verify the
+# pipeline runs end-to-end. Logs to a local MLflow file store (./mlruns) by
+# default, so no mlflow_server job is required.
+#
+# Knobs (env vars, forwarded to smoke_test_all.sh; all optional):
+#   OBJECTIVE   training objective (default: mse)
+#   EPOCHS      epochs per run     (default: 2)
+#   DATASET     dataset config     (default: weak_lensing)
+#   EXPERIMENT  MLflow experiment  (default: smoke_test)
+#
+# Submit:
+#   sbatch scripts/smoke_test_all.submit
+#   sbatch --export=ALL,OBJECTIVE=score,EPOCHS=1 scripts/smoke_test_all.submit
+#   # forward extra Hydra overrides to every run:
+#   sbatch scripts/smoke_test_all.submit training.batch_size=64
+
+set -euo pipefail
+
+export PYTHONUNBUFFERED=1
+module load uv/0.10.10
+
+REPO_ROOT=/cluster/home/baumgnoa/kan-weak-lensing
+cd "${REPO_ROOT}"
+
+export UV_PROJECT_ENVIRONMENT="${REPO_ROOT}/.venv"
+
+# Ensure a uv-managed Python is available (ships with headers Triton needs).
+export UV_PYTHON_DOWNLOADS=manual
+export UV_PYTHON_PREFERENCE=only-managed
+uv python install 3.12
+
+# If an existing venv is built against system Python, recreate it so Triton can find Python.h.
+if [[ -d "${UV_PROJECT_ENVIRONMENT}" ]]; then
+  base_prefix=$("${UV_PROJECT_ENVIRONMENT}/bin/python" -c "import sys; print(sys.base_prefix)" 2>/dev/null || echo "")
+  if [[ "${base_prefix}" != *"/uv/python/"* ]]; then
+    echo "Recreating venv with uv-managed Python (was: ${base_prefix:-missing})"
+    rm -rf "${UV_PROJECT_ENVIRONMENT}"
+  fi
+fi
+
+uv sync
+
+# Run the existing smoke-test driver; knobs above are picked up from the
+# environment, any extra args are forwarded verbatim to every main.py call.
+exec ./scripts/smoke_test_all.sh "$@"
