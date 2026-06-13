@@ -12,8 +12,6 @@ conv_layers: ${oc.select:dataset.conv_layers,2}
 conv_stride_h: ${oc.select:dataset.conv_stride_h,4}
 conv_stride_w: ${oc.select:dataset.conv_stride_w,2}
 conv_kernel: ${oc.select:dataset.conv_kernel,3}
-ps_bins: ${oc.select:dataset.ps_bins,32}
-ps_log: ${oc.select:dataset.ps_log,true}
 img_height: ${oc.select:dataset.img_height,0}
 img_width: ${oc.select:dataset.img_width,0}
 in_chans: ${oc.select:dataset.in_chans,1}

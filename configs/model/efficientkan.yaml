@@ -8,7 +8,7 @@ layers_hidden: ${make_width:${dataset.input_dim},${dataset.output_dim},${model.n
 # B-spline basis: grid_size knots, spline order k (original-KAN-paper style).
 k: 3
 grid_size: 5
-# Image -> vector reduction (avgpool | kymatio | conv | powerspectrum | none)
+# Image -> vector reduction (avgpool | kymatio | conv | none)
 # read from the dataset. Datasets that don't set these (tabular / 1D) default
 # to a no-op passthrough.
 reduction: ${oc.select:dataset.reduction,none}
@@ -21,8 +21,6 @@ conv_layers: ${oc.select:dataset.conv_layers,2}
 conv_stride_h: ${oc.select:dataset.conv_stride_h,4}
 conv_stride_w: ${oc.select:dataset.conv_stride_w,2}
 conv_kernel: ${oc.select:dataset.conv_kernel,3}
-ps_bins: ${oc.select:dataset.ps_bins,32}
-ps_log: ${oc.select:dataset.ps_log,true}
 img_height: ${oc.select:dataset.img_height,0}
 img_width: ${oc.select:dataset.img_width,0}
 in_chans: ${oc.select:dataset.in_chans,1}

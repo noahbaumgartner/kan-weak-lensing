@@ -20,8 +20,6 @@ class FasterKANModel(BaseKANModel):
         conv_stride_h=4,
         conv_stride_w=2,
         conv_kernel=3,
-        ps_bins=32,
-        ps_log=True,
         img_height=0,
         img_width=0,
         in_chans=1,
@@ -47,8 +45,6 @@ class FasterKANModel(BaseKANModel):
             conv_stride_h=conv_stride_h,
             conv_stride_w=conv_stride_w,
             conv_kernel=conv_kernel,
-            ps_bins=ps_bins,
-            ps_log=ps_log,
         )
 
     def build(self, device="cpu"):
