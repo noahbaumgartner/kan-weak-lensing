@@ -1,5 +1,6 @@
 import torch
 from torch import nn
+from torch.nn import functional as F
 
 from .base import BaseKANModel
 from src.modules.convkan import KAN_Convolutional_Layer
@@ -10,13 +11,15 @@ class KKAN_Small(nn.Module):
     def __init__(
         self,
         grid_size: int = 5,
-        img_size: int = 28,
+        img_h: int = 28,
+        img_w: int = 28,
         in_chans: int = 1,
         num_classes: int = 10,
     ):
         super().__init__()
         self.in_chans = in_chans
-        self.img_size = img_size
+        self.img_h = img_h
+        self.img_w = img_w
 
         self.conv1 = KAN_Convolutional_Layer(
             in_channels=in_chans,
@@ -38,13 +41,19 @@ class KKAN_Small(nn.Module):
 
         self.flat = nn.Flatten()
 
-        s = (img_size - 2) // 2
-        s = (s - 2) // 2
-        if s <= 0:
+        # Track each spatial dim independently so non-square (rectangular)
+        # inputs work: each stage is a 3x3 valid conv (-2) then a 2x2 pool (//2).
+        def _stage_out(n: int) -> int:
+            n = (n - 2) // 2
+            n = (n - 2) // 2
+            return n
+
+        h_out, w_out = _stage_out(img_h), _stage_out(img_w)
+        if h_out <= 0 or w_out <= 0:
             raise ValueError(
-                f"img_size={img_size} too small for two (3x3 conv -> 2x2 pool) stages"
+                f"input {img_h}x{img_w} too small for two (3x3 conv -> 2x2 pool) stages"
             )
-        flat_dim = 5 * s * s
+        flat_dim = 5 * h_out * w_out
 
         self.kan1 = KANLinear(
             flat_dim,
@@ -71,25 +80,44 @@ class KKAN_Small(nn.Module):
 
 
 class KKANModel(BaseKANModel):
-    def __init__(self, num_classes, img_size=28, in_chans=1, grid_size=5, **kwargs):
+    def __init__(self, num_classes, img_h=28, img_w=28, in_chans=1, grid_size=5, **kwargs):
         self.num_classes = num_classes
-        self.img_size = img_size
+        self.img_h = img_h
+        self.img_w = img_w
         self.in_chans = in_chans
         self.grid_size = grid_size
 
     def build(self, device="cpu"):
         self.model = KKAN_Small(
             grid_size=self.grid_size,
-            img_size=self.img_size,
+            img_h=self.img_h,
+            img_w=self.img_w,
             in_chans=self.in_chans,
             num_classes=self.num_classes,
         ).to(device)
         self.device = device
 
-    def predict(self, x: torch.Tensor, update_grid: bool = False) -> torch.Tensor:
+    def _prepare_input(self, x: torch.Tensor) -> torch.Tensor:
+        """Bring any input to a (B, C, img_h, img_w) tensor.
+
+        KKAN is a conv-KAN classifier. MNIST-style data is already the right
+        size; the weak-lensing maps are (B, 1, 1424, 176) and are bilinearly
+        resized to ``img_h x img_w`` here. img_h/img_w keep the native 8:1
+        aspect ratio (default 178x22 = 1424x176 / 8), so the map is downscaled
+        without distortion. The 2 raw outputs double as the (Om, S8)
+        regression head under objective=mse.
+        """
         x = x.to(self.device)
         if x.dim() == 2:
-            x = x.view(-1, self.in_chans, self.img_size, self.img_size)
+            x = x.view(-1, self.in_chans, self.img_h, self.img_w)
         elif x.dim() == 3:
             x = x.unsqueeze(1)
-        return self.model(x)
+        if x.shape[-2] != self.img_h or x.shape[-1] != self.img_w:
+            x = F.interpolate(
+                x, size=(self.img_h, self.img_w),
+                mode="bilinear", align_corners=False,
+            )
+        return x
+
+    def predict(self, x: torch.Tensor, update_grid: bool = False) -> torch.Tensor:
+        return self.model(self._prepare_input(x))

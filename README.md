@@ -139,12 +139,15 @@ scripts/                    MLflow-Server + SLURM/lokale Tuning-Jobs
 ## Hinweis zu kkan / kat
 
 `fastkan`, `fasterkan`, `efficientkan` und `wavkan` reduzieren die 1424×176-Maps
-(avgpool / kymatio / conv / powerspectrum) und laufen direkt auf Weak Lensing —
+(avgpool / kymatio / conv) und laufen direkt auf Weak Lensing —
 fertige Sweeps: `configs/sweep/image/tune_{fastkan,fasterkan,efficientkan,wavkan}_wl.yaml`.
 
 `kkan` (Conv-KAN) und `kat` (KAN-ViT) wurden in `kan-lab` auf **quadratischen
-Klassifikations-Bildern** (MNIST etc.) verwendet. Sie sind hier vollständig
-übernommen, benötigen für Weak Lensing aber noch Anpassung (quadratischer
-Input / `dataset.img_size`, bei kat zusätzlich `dataset.patch_size`, sowie ein
-Regressions-Head). Ihre Sweep- und Submit-Configs sind als Ausgangspunkt
-enthalten.
+Klassifikations-Bildern** (MNIST etc.) verwendet. Für Weak Lensing wird die
+1424×176-Map im Modell-Wrapper bilinear auf `dataset.img_size_h`×`img_size_w`
+resized — Default **178×22**, also ein exakter /8-Downscale, der das native
+8:1-Seitenverhältnis **ohne Verzerrung** beibehält (beide Dims durch
+`dataset.patch_size`=2 teilbar). Beide Modelle sind rechteck-fähig; die
+`num_classes`=`output_dim` rohen Outputs dienen direkt als (Om, S8)-Regressions-
+Head unter `objective=mse`. Damit laufen beide jetzt end-to-end — ein schneller
+Test über alle Modelle/Reductions ist `scripts/smoke_test_all.sh`.
