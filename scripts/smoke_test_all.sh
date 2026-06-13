@@ -57,7 +57,7 @@ run_one() {
       objective="${OBJECTIVE}" \
       training=adam \
       training.epochs="${EPOCHS}" \
-      experiment="${EXPERIMENT}" \
+      +experiment="${EXPERIMENT}" \
       mlflow_tracking_uri="${TRACKING_URI}" \
       "${EXTRA_ARGS[@]}"; then
     results+=("PASS  ${label}")
