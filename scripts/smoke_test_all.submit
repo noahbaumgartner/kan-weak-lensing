@@ -54,6 +54,22 @@ fi
 
 uv sync
 
+# Log to the shared MLflow server (same as the tuning jobs) — the file store is
+# rejected by recent MLflow versions. Wait for the mlflow_server job to publish
+# its URL, then export it so smoke_test_all.sh picks it up.
+URL_FILE="${REPO_ROOT}/mlflow/server_url.txt"
+for i in $(seq 1 60); do
+  if [[ -s "${URL_FILE}" ]]; then break; fi
+  echo "Waiting for MLflow URL at ${URL_FILE} (${i}/60)..."
+  sleep 10
+done
+if [[ ! -s "${URL_FILE}" ]]; then
+  echo "MLflow URL file never appeared; is the mlflow_server job running?" >&2
+  exit 1
+fi
+export MLFLOW_TRACKING_URI=$(cat "${URL_FILE}")
+echo "Using MLFLOW_TRACKING_URI=${MLFLOW_TRACKING_URI}"
+
 # Run the existing smoke-test driver; knobs above are picked up from the
 # environment, any extra args are forwarded verbatim to every main.py call.
 exec ./scripts/smoke_test_all.sh "$@"
