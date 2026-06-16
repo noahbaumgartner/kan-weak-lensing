@@ -17,6 +17,13 @@ OBJECTIVE_ARG=()
 if [[ -n "${OBJECTIVE:-}" ]]; then
   OBJECTIVE_ARG=("objective=${OBJECTIVE}")
 fi
+
+# Tag the SLURM job name with the objective so squeue distinguishes e.g. score
+# vs mse runs. The #SBATCH --job-name is static (set before OBJECTIVE is known);
+# submit_all.sh already sets this at submit time, this also covers direct submits.
+if [[ -n "${SLURM_JOB_ID:-}" ]]; then
+  scontrol update JobId="${SLURM_JOB_ID}" JobName="kan_tune_${MODEL}_${OBJECTIVE:-default}" 2>/dev/null || true
+fi
 REDUCTION="${REDUCTION:-avgpool}"
 if [[ -n "${DATASETS:-}" ]]; then
   read -r -a DATASETS <<< "${DATASETS}"

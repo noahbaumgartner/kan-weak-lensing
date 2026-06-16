@@ -28,8 +28,12 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 for job_name in "${JOBS[@]}"; do
   job="${SCRIPT_DIR}/${job_name}"
-  echo "Submitting ${job} (experiment=${EXPERIMENT})..."
-  sbatch --export=ALL,EXPERIMENT="${EXPERIMENT}" "${job}"
+  # tune_fastkan.submit -> fastkan; tag the SLURM job name with the objective
+  # (score | mse | default) so squeue distinguishes runs of different Versuche.
+  model="${job_name#tune_}"; model="${model%.submit}"
+  jobname="kan_tune_${model}_${OBJECTIVE:-default}"
+  echo "Submitting ${job} as ${jobname} (experiment=${EXPERIMENT})..."
+  sbatch --job-name="${jobname}" --export=ALL,EXPERIMENT="${EXPERIMENT}" "${job}"
 done
 
 echo "All ${#JOBS[@]} weak-lensing tuning jobs submitted. Check with: squeue -u \$USER"
