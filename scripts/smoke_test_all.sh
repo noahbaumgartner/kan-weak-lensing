@@ -2,7 +2,7 @@
 # Smoke-test: train every model briefly to check it runs end-to-end locally.
 #
 #   * MLP-style KANs (fastkan, fasterkan, efficientkan, wavkan) are run once per
-#     reduction (avgpool, kymatio, conv, none) -> 4 models x 4 reductions.
+#     reduction (avgpool, conv, none) -> 4 models x 3 reductions.
 #   * kkan + kat are run once each WITHOUT a reduction (they consume the image
 #     directly). NOTE: per README "Hinweis zu kkan / kat" these are still the
 #     kan-lab classifiers and are NOT yet adapted for the 1424x176 weak-lensing
@@ -16,6 +16,8 @@
 # Knobs (env vars, all optional):
 #   OBJECTIVE  Versuch to test (default: mse)
 #   EPOCHS     epochs per run    (default: 2)
+#   BATCH_SIZE batch size        (default: 16 — small so wavkan/none, which
+#              expands the full 1424x176 input, fits in GPU memory)
 #   DATASET    dataset config    (default: weak_lensing)
 #   EXPERIMENT MLflow experiment (default: smoke_test)
 #   MLFLOW_TRACKING_URI  default: local file store ./mlruns
@@ -35,11 +37,12 @@ cd "${REPO_ROOT}"
 DATASET="${DATASET:-weak_lensing}"
 OBJECTIVE="${OBJECTIVE:-mse}"
 EPOCHS="${EPOCHS:-2}"
+BATCH_SIZE="${BATCH_SIZE:-16}"
 EXPERIMENT="${EXPERIMENT:-smoke_test}"
 TRACKING_URI="${MLFLOW_TRACKING_URI:-file://${REPO_ROOT}/mlruns}"
 
 MLP_MODELS=(fastkan fasterkan efficientkan wavkan)
-REDUCTIONS=(avgpool kymatio conv none)
+REDUCTIONS=(avgpool conv none)
 IMAGE_MODELS=(kkan kat)
 
 EXTRA_ARGS=("$@")
@@ -57,6 +60,7 @@ run_one() {
       objective="${OBJECTIVE}" \
       training=adam \
       training.epochs="${EPOCHS}" \
+      training.batch_size="${BATCH_SIZE}" \
       +experiment="${EXPERIMENT}" \
       mlflow_tracking_uri="${TRACKING_URI}" \
       "${EXTRA_ARGS[@]}"; then

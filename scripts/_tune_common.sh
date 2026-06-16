@@ -10,7 +10,7 @@ set -euo pipefail
 #   DATASETS  — space-separated list of dataset names
 #   OBJECTIVE — Versuch / training objective (e.g. score | mse). If set, passed
 #               as objective=${OBJECTIVE}; otherwise the config.yaml default is used.
-#   REDUCTION — image->vector reduction, avgpool | kymatio (default: avgpool).
+#   REDUCTION — image->vector reduction, avgpool | conv (default: avgpool).
 #               Not swept — fixed for the whole job.
 SWEEP="${SWEEP:-image/tune_${MODEL}_wl}"
 OBJECTIVE_ARG=()

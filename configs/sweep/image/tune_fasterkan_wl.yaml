@@ -18,6 +18,6 @@ hydra:
       model.inv_denominator: interval(0.1, 1.0)
       optimizer.lr: tag(log, interval(1e-5, 5e-3))
       ++optimizer.weight_decay: tag(log, interval(1e-6, 1e-2))
-# Image -> vector reduction (avgpool | kymatio) is NOT swept: pass it to the
-# submit job via REDUCTION=... (default avgpool). pool_stride / scattering_J
+# Image -> vector reduction (avgpool | conv) is NOT swept: pass it to the
+# submit job via REDUCTION=... (default avgpool). pool_stride / conv_*
 # come from configs/dataset/weak_lensing.yaml.

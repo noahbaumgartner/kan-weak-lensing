@@ -6,9 +6,6 @@ exponent: 2
 inv_denominator: 0.5
 reduction: ${oc.select:dataset.reduction,none}
 pool_stride: ${oc.select:dataset.pool_stride,1}
-scattering_j: ${oc.select:dataset.scattering_J,3}
-scattering_l: ${oc.select:dataset.scattering_L,8}
-scattering_order: ${oc.select:dataset.scattering_order,2}
 conv_channels: ${oc.select:dataset.conv_channels,64}
 conv_layers: ${oc.select:dataset.conv_layers,2}
 conv_stride_h: ${oc.select:dataset.conv_stride_h,4}

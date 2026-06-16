@@ -23,7 +23,6 @@ dependencies = [
     "timm==1.0.3",
     "kat-rational",
     "einops>=0.7",
-    "kymatio>=0.3",
 ]
 
 [tool.uv]

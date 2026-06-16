@@ -6,7 +6,7 @@ if [[ $# -ne 1 ]]; then
   echo "  Submits one SLURM tuning job per MLP-style KAN model" >&2
   echo "  (fastkan, fasterkan, efficientkan, wavkan) on the weak_lensing dataset," >&2
   echo "  each sweeping over the dimension-reduction method" >&2
-  echo "  (avgpool / kymatio). The experiment_name is used as the MLflow" >&2
+  echo "  (avgpool / conv). The experiment_name is used as the MLflow" >&2
   echo "  experiment for all runs." >&2
   exit 1
 fi

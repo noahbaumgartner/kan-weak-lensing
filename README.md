@@ -24,7 +24,7 @@ uv sync
 MODEL=fasterkan ./scripts/run_local.sh training.epochs=5 model.num_grids=16
 
 # Reduction waehlen (Default avgpool)
-REDUCTION=kymatio ./scripts/run_local.sh
+REDUCTION=conv ./scripts/run_local.sh
 ```
 
 Direkt über Hydra:
@@ -104,7 +104,7 @@ Setup identisch zu `kan-lab`. Tracking-URI Default: `http://127.0.0.1:9299`
 
 Sweep-Konfigurationen liegen unter `configs/sweep/`. `tune_base.yaml` definiert
 den Optuna/TPE-Sweeper; die modell-spezifischen Sweeps erben davon. Die
-Reduction (`avgpool` | `kymatio`) ist **nicht** Teil des Sweeps, sondern wird
+Reduction (`avgpool` | `conv`) ist **nicht** Teil des Sweeps, sondern wird
 fix pro Job über `REDUCTION` mitgegeben (Default `avgpool`).
 
 ```bash
@@ -112,13 +112,13 @@ fix pro Job über `REDUCTION` mitgegeben (Default `avgpool`).
 uv run python main.py --multirun +sweep=image/tune_fastkan_wl dataset=weak_lensing
 
 # Sweep mit anderem Versuch / anderer Reduction
-uv run python main.py --multirun +sweep=image/tune_fastkan_wl objective=mse dataset.reduction=kymatio
+uv run python main.py --multirun +sweep=image/tune_fastkan_wl objective=mse dataset.reduction=conv
 
 # Alle MLP-artigen KANs auf dem Cluster submitten (fastkan, fasterkan, wavkan)
 ./scripts/submit_all_wl.sh <experiment_name>
 # Versuch / Reduction im Sweep: per Env an den Submit-Job geben, z.B.
 sbatch --export=ALL,EXPERIMENT=wl_mse,OBJECTIVE=mse scripts/tune_fastkan_wl.submit
-sbatch --export=ALL,EXPERIMENT=wl_scat,REDUCTION=kymatio scripts/tune_fastkan_wl.submit
+sbatch --export=ALL,EXPERIMENT=wl_conv,REDUCTION=conv scripts/tune_fastkan_wl.submit
 ```
 
 ## Struktur
@@ -139,7 +139,7 @@ scripts/                    MLflow-Server + SLURM/lokale Tuning-Jobs
 ## Hinweis zu kkan / kat
 
 `fastkan`, `fasterkan`, `efficientkan` und `wavkan` reduzieren die 1424×176-Maps
-(avgpool / kymatio / conv) und laufen direkt auf Weak Lensing —
+(avgpool / conv) und laufen direkt auf Weak Lensing —
 fertige Sweeps: `configs/sweep/image/tune_{fastkan,fasterkan,efficientkan,wavkan}_wl.yaml`.
 
 `kkan` (Conv-KAN) und `kat` (KAN-ViT) wurden in `kan-lab` auf **quadratischen
