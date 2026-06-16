@@ -114,7 +114,6 @@ class EnsembleModel(BaseKANModel):
         task_type="regression",
         epoch_callback=None,
         extra_eval_metrics_fn=None,
-        grad_clip=None,
         **kwargs,
     ):
         """Train each member on its own data subset; log score-style metrics.
@@ -179,7 +178,6 @@ class EnsembleModel(BaseKANModel):
         opt = optimizer_factory(self.model.parameters())
         if isinstance(opt, torch.optim.LBFGS):
             raise ValueError("EnsembleModel does not support the LBFGS optimizer; use adam/adamw/sgd.")
-        clip = float(grad_clip) if grad_clip else None
         mse = lambda p, t: torch.mean((p - t) ** 2)
 
         results: dict[str, list] = {
@@ -202,8 +200,6 @@ class EnsembleModel(BaseKANModel):
                     # only this member's params receive gradients this step
                     batch_loss = mse(m.predict(x), y)
                     batch_loss.backward()
-                    if clip is not None:
-                        torch.nn.utils.clip_grad_norm_(m.get_model().parameters(), clip)
                     opt.step()
                     bs_x = x.shape[0]
                     loss_sum = loss_sum + batch_loss.detach() * bs_x

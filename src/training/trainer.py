@@ -30,8 +30,8 @@ class Trainer:
             # FAIR-Universe weak-lensing: minimise the negative of the
             # PDF leaderboard score with λ=1e3.  Labels must be
             # standardised by the dataset so σ lives at a natural O(1)
-            # scale.  Use gradient clipping + a small LR; the λ·MSE term
-            # dominates the gradient.
+            # scale.  No gradient clipping / log σ clamping anymore — use a
+            # small LR if the λ·MSE term destabilises training.
             return score_inference_loss
         return lambda pred, target: torch.mean((pred - target) ** 2)
 

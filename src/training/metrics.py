@@ -21,7 +21,6 @@ def score_inference_loss(
     pred: torch.Tensor, target: torch.Tensor, lam: float = 1e3
 ) -> torch.Tensor:
     mu, log_sigma, _ = _split(pred)
-    log_sigma = log_sigma.clamp(-7.0, 7.0)
     sq_err = (mu - target) ** 2
     # σ is trained on the residual via the NLL, but μ is detached there so its
     # gradient comes only from the λ·MSE term — the two heads stop fighting and
@@ -39,8 +38,6 @@ def eval_metric_sums(
     label_std: Optional[torch.Tensor] = None,
 ) -> dict:
     mu, log_sigma, sigma = _split(pred)
-    log_sigma = log_sigma.clamp(-7.0, 7.0)
-    sigma = torch.exp(log_sigma)
     sq_err = (mu - target) ** 2
     chi2 = sq_err * torch.exp(-2.0 * log_sigma)
     score_loss = (chi2 + 2.0 * log_sigma + lam * sq_err).sum(dim=1)

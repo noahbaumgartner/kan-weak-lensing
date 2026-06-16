@@ -24,6 +24,3 @@ dataset:
   # erzeugt daraus die 4 Werte (mu, log_sigma).
   output_dim: 2
   num_targets: 2
-
-training:
-  grad_clip: 1.0

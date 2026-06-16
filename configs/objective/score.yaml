@@ -14,7 +14,3 @@ dataset:
   loss: score_inference
   output_dim: 4
   num_targets: 4
-
-# score_inference (lambda=1e3) braucht Gradient-Clipping, sonst NaN.
-training:
-  grad_clip: 1.0
