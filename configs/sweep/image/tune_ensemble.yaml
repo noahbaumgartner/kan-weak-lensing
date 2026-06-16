@@ -2,8 +2,8 @@
 #
 # Sweep für den Ensemble-Versuch. IMMER zusammen mit objective=ensemble laufen
 # lassen (setzt Modell=ensemble + score-Logging), z.B.:
-#   uv run python main.py --multirun +sweep=image/tune_ensemble_wl objective=ensemble
-# Der zugehörige Submit-Job (scripts/tune_ensemble_wl.submit) setzt OBJECTIVE
+#   uv run python main.py --multirun +sweep=image/tune_ensemble objective=ensemble
+# Der zugehörige Submit-Job (scripts/tune_ensemble.submit) setzt OBJECTIVE
 # bereits automatisch.
 defaults:
   - override /hydra/sweeper: optuna
@@ -13,16 +13,17 @@ defaults:
 seed: 42
 
 training:
-  epochs: 20
+  epochs: 25
   grad_clip: 1.0  # score_inference (lam=1e3) needs clipping to avoid NaN
 
 hydra:
   sweeper:
     sampler:
       seed: ${seed}
+      n_startup_trials: 10  # random-sample this many trials before TPE kicks in
     direction: minimize
 
-    n_trials: 10
+    n_trials: 50
     n_jobs: 1
     params:
       # Anzahl Ensemble-Member — der Kern dieses Versuchs (8, 12, ... testen).

@@ -1,19 +1,19 @@
 #!/bin/bash
 #SBATCH --time=3-00:00:00
-#SBATCH --job-name=kan_tune_fastkan_wl
+#SBATCH --job-name=kan_tune_fastkan
 #SBATCH --ntasks=1
 #SBATCH --nodes=1
 #SBATCH --account=cai_ivs
 #SBATCH --partition=gpu
 #SBATCH --gres=gpu:1
 #SBATCH --mem=64G
-#SBATCH --output=/cluster/home/baumgnoa/log/%j_%N_tune_fastkan_wl.out
-#SBATCH --error=/cluster/home/baumgnoa/log/%j_%N_tune_fastkan_wl.err
+#SBATCH --output=/cluster/home/baumgnoa/log/%j_%N_tune_fastkan.out
+#SBATCH --error=/cluster/home/baumgnoa/log/%j_%N_tune_fastkan.err
 #SBATCH --export=ALL
 
 export MODEL=fastkan
-export SWEEP=image/tune_fastkan_wl
+export SWEEP=image/tune_fastkan
 export DATASETS="${DATASETS:-weak_lensing}"
 source /cluster/home/baumgnoa/kan-weak-lensing/scripts/_tune_common.sh
 
-# Submit: sbatch --export=ALL,EXPERIMENT=<name> scripts/tune_fastkan_wl.submit
+# Submit: sbatch --export=ALL,EXPERIMENT=<name> scripts/tune_fastkan.submit

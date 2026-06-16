@@ -1,21 +1,19 @@
 # @package _global_
 defaults:
   - /sweep/tune_base
-  - override /model: fasterkan
+  - override /model: fastkan
   - override /training: adam
 
 training:
-  epochs: 20
+  epochs: 25
   grad_clip: 1.0  # score_inference (lam=1e3) needs clipping to avoid NaN
 
 hydra:
   sweeper:
-    n_trials: 10
+    n_trials: 50
     params:
       optimizer: choice(adam, adamw)
-      model.num_grids: range(4, 33)
-      model.exponent: range(2, 5)
-      model.inv_denominator: interval(0.1, 1.0)
+      model.num_grids: range(4, 51)
       optimizer.lr: tag(log, interval(1e-5, 5e-3))
       ++optimizer.weight_decay: tag(log, interval(1e-6, 1e-2))
       dataset.pool_stride: range(4, 9)        # avgpool strength (no-op for conv)

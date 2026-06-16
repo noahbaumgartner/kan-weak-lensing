@@ -16,21 +16,17 @@ uv sync
 
 ## Lokaler Lauf
 
-```bash
-# fastkan auf weak_lensing, lokaler MLflow-File-Store (./mlruns)
-./scripts/run_local.sh
-
-# anderes Modell / Hydra-Overrides
-MODEL=fasterkan ./scripts/run_local.sh training.epochs=5 model.num_grids=16
-
-# Reduction waehlen (Default avgpool)
-REDUCTION=conv ./scripts/run_local.sh
-```
-
 Direkt über Hydra:
 
 ```bash
-uv run python main.py model=wavkan dataset=weak_lensing training=adam
+# fastkan auf weak_lensing (Default-objective score)
+uv run python main.py model=fastkan dataset=weak_lensing training=adam
+
+# anderes Modell / Hydra-Overrides
+uv run python main.py model=fasterkan dataset=weak_lensing training=adam training.epochs=5 model.num_grids=16
+
+# Reduction waehlen (Default avgpool)
+uv run python main.py model=wavkan dataset=weak_lensing training=adam dataset.reduction=conv
 ```
 
 Der Pfad zu den `.npy`-Dateien wird in `configs/dataset/weak_lensing.yaml`
@@ -73,7 +69,7 @@ Metriken wie `score`, ohne σ direkt zu lernen.
 Stellschrauben: `model.n_members` (8, 12, …), `model.seed_base`,
 Member-Architektur via `member@model.member=<fastkan|fasterkan|efficientkan|wavkan>`
 (`configs/member/`), Member-Hyperparameter via `model.member.*`. Sweep:
-`configs/sweep/image/tune_ensemble_wl.yaml` (sweept u.a. `n_members`).
+`configs/sweep/image/tune_ensemble.yaml` (sweept u.a. `n_members`).
 
 Noch *nicht* enthalten ist der dritte Vorschlag (Samples direkt in den
 Probability-Space mappen via spatial NN / Normalizing Flow) — das ist ein
@@ -109,16 +105,17 @@ fix pro Job über `REDUCTION` mitgegeben (Default `avgpool`).
 
 ```bash
 # Einzelnen Sweep lokal laufen lassen (Default-objective aus config.yaml = score)
-uv run python main.py --multirun +sweep=image/tune_fastkan_wl dataset=weak_lensing
+uv run python main.py --multirun +sweep=image/tune_fastkan dataset=weak_lensing
 
 # Sweep mit anderem Versuch / anderer Reduction
-uv run python main.py --multirun +sweep=image/tune_fastkan_wl objective=mse dataset.reduction=conv
+uv run python main.py --multirun +sweep=image/tune_fastkan objective=mse dataset.reduction=conv
 
-# Alle MLP-artigen KANs auf dem Cluster submitten (fastkan, fasterkan, wavkan)
-./scripts/submit_all_wl.sh <experiment_name>
+# Alle Modelle auf dem Cluster submitten (fastkan, fasterkan, efficientkan,
+# wavkan, kkan, kat) — ein Job pro Modell
+./scripts/submit_all.sh <experiment_name>
 # Versuch / Reduction im Sweep: per Env an den Submit-Job geben, z.B.
-sbatch --export=ALL,EXPERIMENT=wl_mse,OBJECTIVE=mse scripts/tune_fastkan_wl.submit
-sbatch --export=ALL,EXPERIMENT=wl_conv,REDUCTION=conv scripts/tune_fastkan_wl.submit
+sbatch --export=ALL,EXPERIMENT=wl_mse,OBJECTIVE=mse scripts/tune_fastkan.submit
+sbatch --export=ALL,EXPERIMENT=wl_conv,REDUCTION=conv scripts/tune_fastkan.submit
 ```
 
 ## Struktur
@@ -133,14 +130,14 @@ src/
   modules/                  KAN-Implementierungen + reduction (image -> vector)
   optimizers/               Adam, AdamW, SGD, LBFGS
   training/                 Trainer + Weak-Lensing-Scoring (metrics.py)
-scripts/                    MLflow-Server + SLURM/lokale Tuning-Jobs
+scripts/                    MLflow-Server + SLURM-Tuning-Jobs
 ```
 
 ## Hinweis zu kkan / kat
 
 `fastkan`, `fasterkan`, `efficientkan` und `wavkan` reduzieren die 1424×176-Maps
 (avgpool / conv) und laufen direkt auf Weak Lensing —
-fertige Sweeps: `configs/sweep/image/tune_{fastkan,fasterkan,efficientkan,wavkan}_wl.yaml`.
+fertige Sweeps: `configs/sweep/image/tune_{fastkan,fasterkan,efficientkan,wavkan}.yaml`.
 
 `kkan` (Conv-KAN) und `kat` (KAN-ViT) wurden in `kan-lab` auf **quadratischen
 Klassifikations-Bildern** (MNIST etc.) verwendet. Für Weak Lensing wird die
@@ -149,5 +146,4 @@ resized — Default **178×22**, also ein exakter /8-Downscale, der das native
 8:1-Seitenverhältnis **ohne Verzerrung** beibehält (beide Dims durch
 `dataset.patch_size`=2 teilbar). Beide Modelle sind rechteck-fähig; die
 `num_classes`=`output_dim` rohen Outputs dienen direkt als (Om, S8)-Regressions-
-Head unter `objective=mse`. Damit laufen beide jetzt end-to-end — ein schneller
-Test über alle Modelle/Reductions ist `scripts/smoke_test_all.sh`.
+Head unter `objective=mse`. Damit laufen beide jetzt end-to-end.

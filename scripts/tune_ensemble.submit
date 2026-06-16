@@ -1,21 +1,21 @@
 #!/bin/bash
 #SBATCH --time=3-00:00:00
-#SBATCH --job-name=kan_tune_ensemble_wl
+#SBATCH --job-name=kan_tune_ensemble
 #SBATCH --ntasks=1
 #SBATCH --nodes=1
 #SBATCH --account=cai_ivs
 #SBATCH --partition=gpu
 #SBATCH --gres=gpu:1
 #SBATCH --mem=64G
-#SBATCH --output=/cluster/home/baumgnoa/log/%j_%N_tune_ensemble_wl.out
-#SBATCH --error=/cluster/home/baumgnoa/log/%j_%N_tune_ensemble_wl.err
+#SBATCH --output=/cluster/home/baumgnoa/log/%j_%N_tune_ensemble.out
+#SBATCH --error=/cluster/home/baumgnoa/log/%j_%N_tune_ensemble.err
 #SBATCH --export=ALL
 
 # Deep-Ensemble-Versuch. OBJECTIVE=ensemble schaltet das Modell auf den
 # Ensemble-Wrapper (Member-Default: fastkan). Member tauschen via z.B.
-#   sbatch --export=ALL,EXPERIMENT=<name>,MEMBER=wavkan scripts/tune_ensemble_wl.submit
+#   sbatch --export=ALL,EXPERIMENT=<name>,MEMBER=wavkan scripts/tune_ensemble.submit
 export MODEL=ensemble
-export SWEEP=image/tune_ensemble_wl
+export SWEEP=image/tune_ensemble
 export OBJECTIVE=ensemble
 export DATASETS="${DATASETS:-weak_lensing}"
 # Optional: andere Member-Architektur in den Sweep geben.
@@ -24,4 +24,4 @@ if [[ -n "${MEMBER:-}" ]]; then
 fi
 source /cluster/home/baumgnoa/kan-weak-lensing/scripts/_tune_common.sh
 
-# Submit: sbatch --export=ALL,EXPERIMENT=<name> scripts/tune_ensemble_wl.submit
+# Submit: sbatch --export=ALL,EXPERIMENT=<name> scripts/tune_ensemble.submit

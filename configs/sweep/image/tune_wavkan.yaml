@@ -1,19 +1,19 @@
 # @package _global_
 defaults:
   - /sweep/tune_base
-  - override /model: efficientkan
+  - override /model: wavkan
   - override /training: adam
 
 training:
-  epochs: 20
+  epochs: 25
   grad_clip: 1.0  # score_inference (lam=1e3) needs clipping to avoid NaN
 
 hydra:
   sweeper:
-    n_trials: 10
+    n_trials: 50
     params:
       optimizer: choice(adam, adamw)
-      model.grid_size: range(3, 51)
+      model.wavelet_type: choice(mexican_hat, morlet, dog, meyer, shannon)
       optimizer.lr: tag(log, interval(1e-5, 5e-3))
       ++optimizer.weight_decay: tag(log, interval(1e-6, 1e-2))
       dataset.pool_stride: range(4, 9)        # avgpool strength (no-op for conv)
@@ -22,5 +22,5 @@ hydra:
       dataset.conv_kernel: choice(3, 5, 7)
 # Reduction *method* (avgpool | conv) is set per job via REDUCTION=... (default
 # avgpool), NOT swept. Both methods' knobs are swept together; the inactive
-# method's params are no-ops. pool_stride 4-8 and conv_channels<=128 keep
-# input_dim moderate (no full-resolution flatten -> no OOM).
+# method's params are no-ops. pool_stride>=4 (WavKAN is memory-heavy) and
+# conv_channels<=128 keep input_dim moderate (no full-resolution flatten).

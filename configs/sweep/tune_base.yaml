@@ -12,6 +12,7 @@ hydra:
   sweeper:
     sampler:
       seed: ${seed}
+      n_startup_trials: 10  # random-sample this many trials before TPE kicks in
     direction: minimize
 
     n_trials: 100

@@ -6,13 +6,13 @@ set -euo pipefail
 : "${EXPERIMENT:?EXPERIMENT must be set by the caller (MLflow experiment name)}"
 
 # Optional overrides:
-#   SWEEP     — Hydra sweep name including subgroup (default: image/tune_${MODEL}_wl)
+#   SWEEP     — Hydra sweep name including subgroup (default: image/tune_${MODEL})
 #   DATASETS  — space-separated list of dataset names
 #   OBJECTIVE — Versuch / training objective (e.g. score | mse). If set, passed
 #               as objective=${OBJECTIVE}; otherwise the config.yaml default is used.
 #   REDUCTION — image->vector reduction, avgpool | conv (default: avgpool).
 #               Not swept — fixed for the whole job.
-SWEEP="${SWEEP:-image/tune_${MODEL}_wl}"
+SWEEP="${SWEEP:-image/tune_${MODEL}}"
 OBJECTIVE_ARG=()
 if [[ -n "${OBJECTIVE:-}" ]]; then
   OBJECTIVE_ARG=("objective=${OBJECTIVE}")
