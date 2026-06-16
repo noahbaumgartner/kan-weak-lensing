@@ -2,7 +2,8 @@
 # Smoke-test: train every model briefly to check it runs end-to-end locally.
 #
 #   * MLP-style KANs (fastkan, fasterkan, efficientkan, wavkan) are run once per
-#     reduction (avgpool, conv, none) -> 4 models x 3 reductions.
+#     reduction (avgpool, conv) -> 4 models x 2 reductions. ('none' is skipped:
+#     on the 1424x176 map it flattens to ~250k features and OOMs the GPU.)
 #   * kkan + kat are run once each WITHOUT a reduction (they consume the image
 #     directly). NOTE: per README "Hinweis zu kkan / kat" these are still the
 #     kan-lab classifiers and are NOT yet adapted for the 1424x176 weak-lensing
@@ -42,7 +43,7 @@ EXPERIMENT="${EXPERIMENT:-smoke_test}"
 TRACKING_URI="${MLFLOW_TRACKING_URI:-file://${REPO_ROOT}/mlruns}"
 
 MLP_MODELS=(fastkan fasterkan efficientkan wavkan)
-REDUCTIONS=(avgpool conv none)
+REDUCTIONS=(avgpool conv)
 IMAGE_MODELS=(kkan kat)
 
 EXTRA_ARGS=("$@")

@@ -18,6 +18,11 @@ hydra:
       model.inv_denominator: interval(0.1, 1.0)
       optimizer.lr: tag(log, interval(1e-5, 5e-3))
       ++optimizer.weight_decay: tag(log, interval(1e-6, 1e-2))
-# Image -> vector reduction (avgpool | conv) is NOT swept: pass it to the
-# submit job via REDUCTION=... (default avgpool). pool_stride / conv_*
-# come from configs/dataset/weak_lensing.yaml.
+      dataset.pool_stride: range(4, 9)        # avgpool strength (no-op for conv)
+      dataset.conv_channels: range(16, 129)   # conv: == input_dim (no-op for avgpool)
+      dataset.conv_layers: range(1, 4)
+      dataset.conv_kernel: choice(3, 5, 7)
+# Reduction *method* (avgpool | conv) is set per job via REDUCTION=... (default
+# avgpool), NOT swept. Both methods' knobs are swept together; the inactive
+# method's params are no-ops. pool_stride 4-8 and conv_channels<=128 keep
+# input_dim moderate (no full-resolution flatten -> no OOM).

@@ -32,6 +32,11 @@ hydra:
       optimizer: choice(adam, adamw)
       optimizer.lr: tag(log, interval(1e-5, 5e-3))
       ++optimizer.weight_decay: tag(log, interval(1e-6, 1e-2))
-# Image -> vector reduction (avgpool | conv) wird NICHT gesweept: per
-# REDUCTION=... an den Submit-Job geben (Default avgpool). pool_stride /
-# conv_* kommen aus configs/dataset/weak_lensing.yaml.
+      dataset.pool_stride: range(4, 9)        # avgpool-Staerke (No-op bei conv)
+      dataset.conv_channels: range(16, 129)   # conv: == input_dim (No-op bei avgpool)
+      dataset.conv_layers: range(1, 4)
+      dataset.conv_kernel: choice(3, 5, 7)
+# Reduktions-*Methode* (avgpool | conv) wird pro Job via REDUCTION=... gesetzt
+# (Default avgpool), NICHT gesweept. Beide Methoden-Knoepfe werden zusammen
+# gesweept; der jeweils inaktive Satz ist ein No-op. pool_stride 4-8 und
+# conv_channels<=128 halten input_dim moderat (kein voller Flatten -> kein OOM).
