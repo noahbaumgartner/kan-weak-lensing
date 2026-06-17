@@ -34,8 +34,23 @@ OmegaConf.register_new_resolver("reduced_dim", reduced_dim, replace=True)
 
 @hydra.main(version_base=None, config_path="configs", config_name="config")
 def main(cfg: DictConfig) -> float:
+    import torch
+
     trainer = instantiate(cfg.trainer, cfg=cfg, _recursive_=False)
-    results = trainer.train()
+    try:
+        results = trainer.train()
+    except torch.cuda.OutOfMemoryError:
+        # WavKAN memory scales as batch x out_features x in_features; some
+        # sweep configs (large input_dim x wide layer) overflow the GPU.
+        # Report the trial as bad instead of killing the whole study, and
+        # release the reserved blocks so the next trial starts clean.
+        print("CUDA OOM for this trial -> returning sentinel loss 1e10")
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+        return 1e10
+    finally:
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
     final_loss = float(results["test_loss"][-1])
     return final_loss if math.isfinite(final_loss) else 1e10
 

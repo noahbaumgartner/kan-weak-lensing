@@ -34,6 +34,10 @@ else
 fi
 
 export PYTHONUNBUFFERED=1
+# Trials run sequentially in one process (n_jobs=1); expandable segments reduce
+# cross-trial CUDA fragmentation so reserved-but-unallocated blocks don't OOM
+# the next trial.
+export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
 module load uv/0.10.10
 cd /cluster/home/baumgnoa/kan-weak-lensing
 

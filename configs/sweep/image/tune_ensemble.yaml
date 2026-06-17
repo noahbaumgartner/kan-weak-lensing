@@ -32,7 +32,7 @@ hydra:
       optimizer: choice(adam, adamw)
       optimizer.lr: tag(log, interval(1e-5, 5e-3))
       ++optimizer.weight_decay: tag(log, interval(1e-6, 1e-2))
-      dataset.pool_stride: range(4, 9)        # avgpool-Staerke (No-op bei conv)
+      dataset.pool_stride: range(5, 9)        # avgpool-Staerke (No-op bei conv); >=5 haelt input_dim klein, vermeidet CUDA OOM
       dataset.conv_channels: range(16, 129)   # conv: == input_dim (No-op bei avgpool)
       dataset.conv_layers: range(1, 4)
       dataset.conv_kernel: choice(3, 5, 7)
