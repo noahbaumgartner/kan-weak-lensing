@@ -8,6 +8,7 @@ from torch.utils.data import DataLoader, Dataset, Subset, TensorDataset
 from tqdm import tqdm
 
 from .base import BaseKANModel
+from src.training.early_stopping import EarlyStopping
 
 
 class EnsembleModel(BaseKANModel):
@@ -186,6 +187,13 @@ class EnsembleModel(BaseKANModel):
         }
         extra_metric_keys: list[str] = []
 
+        stopper = EarlyStopping(
+            patience=kwargs.get("es_patience", 10),
+            min_delta=kwargs.get("es_min_delta", 0.0),
+            restore_best=kwargs.get("es_restore_best", True),
+            enabled=kwargs.get("early_stopping", False),
+        )
+
         for epoch in tqdm(range(epochs), desc="Training (ensemble)"):
             # --- train: each member on its own data subset / MSE ---
             self.model.train()
@@ -239,4 +247,8 @@ class EnsembleModel(BaseKANModel):
             if epoch_callback is not None:
                 epoch_callback(epoch, self)
 
+            if stopper.step(epoch, val_loss, self.model):
+                break
+
+        stopper.finalize(self.model, results, device)
         return results

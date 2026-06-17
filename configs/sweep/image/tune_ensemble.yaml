@@ -13,7 +13,7 @@ defaults:
 seed: 42
 
 training:
-  epochs: 25
+  epochs: 50   # max budget; early stopping (configs/training/adam.yaml) ends trials sooner
 
 hydra:
   sweeper:

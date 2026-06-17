@@ -4,6 +4,8 @@ import torch
 from torch.utils.data import DataLoader, Dataset, TensorDataset
 from tqdm import tqdm
 
+from src.training.early_stopping import EarlyStopping
+
 
 class BaseKANModel(ABC):
     model: torch.nn.Module | None = None
@@ -37,6 +39,10 @@ class BaseKANModel(ABC):
         epoch_callback=None,
         extra_eval_metrics_fn=None,
         grad_clip=None,
+        early_stopping=False,
+        es_patience=10,
+        es_min_delta=0.0,
+        es_restore_best=True,
         **kwargs,
     ):
         # Datasets return CPU tensors; the DataLoader moves each batch to
@@ -91,6 +97,12 @@ class BaseKANModel(ABC):
         extra_metric_keys: list[str] = []
 
         device = self.device
+        stopper = EarlyStopping(
+            patience=es_patience,
+            min_delta=es_min_delta,
+            restore_best=es_restore_best,
+            enabled=early_stopping,
+        )
         for epoch in tqdm(range(epochs), desc="Training"):
             # --- Train (accumulate metrics during the step to skip a redundant eval pass) ---
             self.get_model().train()
@@ -184,4 +196,8 @@ class BaseKANModel(ABC):
             if epoch_callback is not None:
                 epoch_callback(epoch, self)
 
+            if stopper.step(epoch, val_mse, self.get_model()):
+                break
+
+        stopper.finalize(self.get_model(), results, device)
         return results

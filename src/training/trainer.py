@@ -97,6 +97,10 @@ class Trainer:
                 num_workers=cfg.training.get("num_workers", 0),
                 prefetch_factor=cfg.training.get("prefetch_factor", 4),
                 grad_clip=cfg.training.get("grad_clip", None),
+                early_stopping=cfg.training.get("early_stopping", False),
+                es_patience=cfg.training.get("es_patience", 10),
+                es_min_delta=cfg.training.get("es_min_delta", 0.0),
+                es_restore_best=cfg.training.get("es_restore_best", True),
             )
 
             if is_score_inference:
