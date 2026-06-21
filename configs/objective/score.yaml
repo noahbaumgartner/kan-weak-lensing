@@ -14,3 +14,4 @@ dataset:
   loss: score_inference
   output_dim: 4
   num_targets: 4
+  standardize_labels: false
