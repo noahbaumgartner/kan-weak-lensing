@@ -10,8 +10,54 @@ from omegaconf import OmegaConf
 from src import get_device
 from src.training.metrics import (
     eval_metric_sums,
+    regression_metric_sums,
     score_inference_loss,
 )
+
+# Friendly per-parameter names for the 2 cosmological targets (Ω_m, S_8).
+_PARAM_NAMES = ["om", "s8"]
+
+
+def _param_names(n: int) -> list[str]:
+    return _PARAM_NAMES[:n] if n == len(_PARAM_NAMES) else [f"p{j}" for j in range(n)]
+
+
+def _label_var_per(obj, n_targets: int):
+    """Per-parameter (column-wise) label variance, in the label's own space.
+
+    Used for *honest* per-parameter R² = 1 − MSE_j / Var_j, which is invariant
+    to label scaling — unlike the pooled variance, which mixes the Ω_m and S_8
+    columns and inflates R²."""
+    if obj is None:
+        return None
+    if not isinstance(obj, torch.Tensor):
+        obj = torch.as_tensor(obj)
+    obj = obj.reshape(-1, obj.shape[-1])[:, :n_targets]
+    return torch.var(obj, dim=0, unbiased=False).tolist()
+
+
+def _per_param_metrics(mse_per: list[float], var_per) -> dict:
+    """Build per-parameter R² / standardised-MSE metrics from per-parameter MSE.
+
+    ``std_mse_j = MSE_j / Var_j = 1 − R²_j`` is the per-parameter analogue of the
+    competition's "MEAN MSE (STANDARDIZED)"; the macro mean averages the two
+    parameters with equal weight (no mean-gap inflation)."""
+    names = _param_names(len(mse_per))
+    out: dict[str, float] = {}
+    r2s, std_mses = [], []
+    for j, mse_j in enumerate(mse_per):
+        out[f"mse_{names[j]}"] = mse_j
+        if var_per is not None and var_per[j] > 0:
+            r2_j = 1.0 - mse_j / var_per[j]
+            std_mse_j = mse_j / var_per[j]
+            out[f"r2_{names[j]}"] = r2_j
+            out[f"mse_std_{names[j]}"] = std_mse_j
+            r2s.append(r2_j)
+            std_mses.append(std_mse_j)
+    if r2s:
+        out["r2_macro"] = sum(r2s) / len(r2s)
+        out["mse_std_mean"] = sum(std_mses) / len(std_mses)
+    return out
 
 
 class Trainer:
@@ -112,6 +158,10 @@ class Trainer:
                     )
                 else:
                     fit_kwargs["extra_eval_metrics_fn"] = eval_metric_sums
+            elif task_type == "regression":
+                # Plain-MSE objective: accumulate per-parameter squared error so
+                # we can log honest per-parameter R² / standardised MSE below.
+                fit_kwargs["extra_eval_metrics_fn"] = regression_metric_sums
 
             results = model.fit(**fit_kwargs)
 
@@ -159,9 +209,11 @@ class Trainer:
                 # multiply MSE component-wise by std² to recover original
                 # units at submission time.
                 n_steps = len(results["train_loss"])
-                test_var = _label_var(
-                    dataset.get("val_label", dataset.get("test_label"))
-                )
+                val_label = dataset.get("val_label", dataset.get("test_label"))
+                test_var = _label_var(val_label)
+                # Per-parameter variance (Ω_m, S_8) for honest per-parameter R².
+                n_param = sum(1 for k in results if k.startswith("mse_p"))
+                var_per = _label_var_per(val_label, n_param)
                 # ``test_score`` is the Codabench leaderboard score — computed
                 # in original Ω_m / S_8 units when labels were standardised,
                 # otherwise identical to ``-score_loss``.
@@ -180,6 +232,10 @@ class Trainer:
                     }
                     if test_var and test_var > 0:
                         metrics["test_r2"] = 1.0 - test_mse / test_var
+                    mse_per = [float(results[f"mse_p{j}"][step_i]) for j in range(n_param)]
+                    metrics.update(
+                        {f"test_{k}": v for k, v in _per_param_metrics(mse_per, var_per).items()}
+                    )
                     mlflow.log_metrics(metrics, step=step_i)
 
                 # Final summary metrics (last epoch).
@@ -201,22 +257,41 @@ class Trainer:
                         "final_test_r2", 1.0 - final_test_mse / test_var
                     )
 
+                final_mse_per = [float(final[f"mse_p{j}"]) for j in range(n_param)]
+                pp = _per_param_metrics(final_mse_per, var_per)
+                for k, v in pp.items():
+                    mlflow.log_metric(f"final_test_{k}", v)
+
                 print(f"\nFinal Test Score:        {final_test_score:.4f}  (Codabench scale)")
                 print(f"Final Test MSE:          {final_test_mse:.6f}")
                 print(f"Final Coverage:          {float(final['coverage']):.4f}  (target ~0.68)")
+                if "r2_macro" in pp:
+                    print(f"Per-param R² (honest):   {pp['r2_macro']:.4f}  (macro mean)")
+                    print(f"Std-MSE (leaderboard):   {pp['mse_std_mean']:.4f}  (= 1 − R², lower=better)")
             else:
+                # Per-parameter variance (Ω_m, S_8) for honest per-parameter R².
+                # The pooled `final_test_r2` below mixes both columns and is
+                # inflated when labels are raw (standardize_labels: false) — the
+                # per-parameter R² / standardised MSE are the trustworthy numbers.
+                n_param = sum(1 for k in results if k.startswith("mse_p"))
+                var_per = _label_var_per(
+                    dataset.get("val_label", dataset.get("test_label")), n_param
+                )
                 for step_i, (tl, vl) in enumerate(
                     zip(results["train_loss"], results["test_loss"])
                 ):
-                    mlflow.log_metrics(
-                        {
-                            "train_mse": float(tl),
-                            "test_mse": float(vl),
-                            "train_rmse": float(tl) ** 0.5,
-                            "test_rmse": float(vl) ** 0.5,
-                        },
-                        step=step_i,
-                    )
+                    step_metrics = {
+                        "train_mse": float(tl),
+                        "test_mse": float(vl),
+                        "train_rmse": float(tl) ** 0.5,
+                        "test_rmse": float(vl) ** 0.5,
+                    }
+                    if n_param:
+                        mse_per = [float(results[f"mse_p{j}"][step_i]) for j in range(n_param)]
+                        step_metrics.update(
+                            {f"test_{k}": v for k, v in _per_param_metrics(mse_per, var_per).items()}
+                        )
+                    mlflow.log_metrics(step_metrics, step=step_i)
 
                 final_train_mse = float(results["train_loss"][-1])
                 final_test_mse = float(results["test_loss"][-1])
@@ -245,12 +320,28 @@ class Trainer:
                 mlflow.log_metric("final_train_r2", final_train_r2)
                 mlflow.log_metric("final_test_r2", final_test_r2)
 
+                pp = {}
+                if n_param:
+                    final_mse_per = [float(results[f"mse_p{j}"][-1]) for j in range(n_param)]
+                    pp = _per_param_metrics(final_mse_per, var_per)
+                    for k, v in pp.items():
+                        mlflow.log_metric(f"final_test_{k}", v)
+
                 print(f"\nFinal Train MSE:  {final_train_mse:.6f}")
                 print(f"Final Test MSE:   {final_test_mse:.6f}")
                 print(f"Final Train RMSE: {final_train_rmse:.6f}")
                 print(f"Final Test RMSE:  {final_test_rmse:.6f}")
-                print(f"Final Train R²:   {final_train_r2:.6f}")
-                print(f"Final Test R²:    {final_test_r2:.6f}")
+                print(f"Final Train R²:   {final_train_r2:.6f}  (pooled — inflated, see below)")
+                print(f"Final Test R²:    {final_test_r2:.6f}  (pooled — inflated, see below)")
+                if "r2_macro" in pp:
+                    names = _param_names(n_param)
+                    for nm in names:
+                        print(
+                            f"  {nm:>3}: R²={pp[f'r2_{nm}']:.4f}  "
+                            f"std-MSE={pp[f'mse_std_{nm}']:.4f}"
+                        )
+                    print(f"Per-param R² (honest):   {pp['r2_macro']:.4f}  (macro mean)")
+                    print(f"Std-MSE (leaderboard):   {pp['mse_std_mean']:.4f}  (= 1 − R², lower=better)")
 
             mlflow.log_metric("training_time_sec", train_time)
 
