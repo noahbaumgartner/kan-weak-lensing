@@ -6,6 +6,6 @@ device: auto
 # Validation-loss early stopping (see configs/training/adam.yaml for details).
 # es_min_delta is a *relative* threshold (fraction of the current best).
 early_stopping: true
-es_patience: 8
-es_min_delta: 0.005
+es_patience: 12
+es_min_delta: 0.001
 es_restore_best: true

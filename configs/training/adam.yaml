@@ -13,6 +13,6 @@ device: auto
 #   the mse and score objectives' very different loss scales. Set 0.0 to count
 #   any decrease as an improvement.
 early_stopping: true
-es_patience: 8
-es_min_delta: 0.005
+es_patience: 12
+es_min_delta: 0.001
 es_restore_best: true
