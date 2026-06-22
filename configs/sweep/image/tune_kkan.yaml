@@ -23,6 +23,8 @@ hydra:
       optimizer: choice(adam, adamw, sgd)
       training.batch_size: choice(64, 128, 256)
       model.grid_size: range(3, 21)
-      optimizer.lr: tag(log, interval(0.001, 1.0))
+      # Same proven range as tune_efficientkan. The old (1e-3, 1.0) upper bound
+      # diverges instantly now that labels are standardised (loss is O(1)).
+      optimizer.lr: tag(log, interval(1e-5, 5e-3))
       ++optimizer.weight_decay: tag(log, interval(1e-6, 1e-2))
       ++optimizer.momentum: interval(0.0, 0.99)

@@ -6,16 +6,18 @@
 #SBATCH --account=cai_ivs
 #SBATCH --partition=gpu
 #SBATCH --gres=gpu:1
-#SBATCH --mem=8G
+#SBATCH --mem=64G
 #SBATCH --output=/cluster/home/baumgnoa/log/%j_%N_tune_kat_image.out
 #SBATCH --error=/cluster/home/baumgnoa/log/%j_%N_tune_kat_image.err
 #SBATCH --export=ALL
 
-# NOTE: KAT is a vision-transformer (KAN-based) classifier that assumes a
-# *square* input (img_size x img_size) with patch embedding. The weak-lensing
-# maps are 1424 x 176; the model/dataset configs still need adapting
-# (dataset.img_size, dataset.patch_size, square crop/resize, regression head)
-# before this sweep will run end-to-end.
+# KAT is a KAN vision-transformer. src/models/kat_model.py bilinearly resizes
+# each map to dataset.img_size_h x img_size_w (default 178x22 = 1424x176 / 8,
+# native 8:1 aspect ratio; both must be divisible by dataset.patch_size).
+# timm's PatchEmbed handles the rectangular size, and the dataset.output_dim
+# raw outputs double as the regression head: 2 for objective=mse, 4 (mu,
+# log_sigma) for objective=score. Runs end-to-end on weak_lensing.
+#   Submit:  MODELS="kat" OBJECTIVE=mse scripts/submit_all.sh <experiment>
 export MODEL=kat
 export SWEEP=image/tune_kat
 export DATASETS="${DATASETS:-weak_lensing}"
