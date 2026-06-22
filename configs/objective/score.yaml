@@ -10,8 +10,14 @@
 #
 # Labels bleiben 2-dimensional (Om, S8); nur der Modell-Head ist auf 4
 # verbreitert. Die score_inference-Loss splittet den 4-Vektor intern.
+#
+# standardize_labels: true — σ lebt dadurch auf einer natürlichen O(1)-Skala
+# (kalibriert sauberer) UND das geloggte final_test_r2 / _mse ist ehrlich
+# (z-Raum, Mittelwerte 0 → kein Pooling-Aufblähen). Der eingereichte Codabench-
+# Score bleibt unverändert: er wird über ``score_loss_original`` in die
+# ursprünglichen Om/S8-Einheiten zurückgerechnet (src/training/metrics.py).
 dataset:
   loss: score_inference
   output_dim: 4
   num_targets: 4
-  standardize_labels: false
+  standardize_labels: true
