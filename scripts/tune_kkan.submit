@@ -6,15 +6,17 @@
 #SBATCH --account=cai_ivs
 #SBATCH --partition=gpu
 #SBATCH --gres=gpu:1
-#SBATCH --mem=8G
+#SBATCH --mem=64G
 #SBATCH --output=/cluster/home/baumgnoa/log/%j_%N_tune_kkan_image.out
 #SBATCH --error=/cluster/home/baumgnoa/log/%j_%N_tune_kkan_image.err
 #SBATCH --export=ALL
 
-# NOTE: KKAN is a conv-KAN classifier that assumes a *square* input
-# (img_size x img_size). The weak-lensing maps are 1424 x 176 and the
-# model/dataset configs still need adapting (dataset.img_size, square
-# crop/resize, regression head) before this sweep will run end-to-end.
+# KKAN is a conv-KAN. src/models/kkan_model.py bilinearly resizes each map to
+# dataset.img_size_h x img_size_w (default 178x22 = 1424x176 / 8, native 8:1
+# aspect ratio, non-square supported) and the dataset.output_dim raw outputs
+# double as the regression head: 2 for objective=mse, 4 (mu, log_sigma) for
+# objective=score. Runs end-to-end on weak_lensing.
+#   Submit:  MODELS="kkan" OBJECTIVE=mse scripts/submit_all.sh <experiment>
 export MODEL=kkan
 export SWEEP=image/tune_kkan
 export DATASETS="${DATASETS:-weak_lensing}"
