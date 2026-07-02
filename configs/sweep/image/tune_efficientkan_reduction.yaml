@@ -1,0 +1,33 @@
+# @package _global_
+#
+# Stage 2 of the staged efficientkan sweep (siehe README "Gestaffeltes
+# Sweeping"): model.grid_size + Reduction-Methode/-Knobs. Architektur
+# (model.n_hidden_layers/hidden_width_*) und Optimizer (lr/weight_decay)
+# werden NICHT hier gesweept, sondern muessen als fixe Overrides von Stage 1
+# (tune_efficientkan_arch.yaml) mitgegeben werden, z.B.:
+#   sbatch --export=ALL,EXPERIMENT=...,SWEEP=image/tune_efficientkan_reduction,\
+#     EXTRA_weak_lensing="model.n_hidden_layers=2 model.hidden_width_0=494 \
+#     model.hidden_width_1=409 optimizer.lr=8e-4 optimizer.weight_decay=1e-5" \
+#     scripts/tune_efficientkan.submit
+defaults:
+  - /sweep/image/_reduction_sweep
+  - override /hydra/sweeper: optuna
+  - override /hydra/sweeper/sampler: tpe
+  - override /model: efficientkan
+
+seed: 42
+
+training:
+  epochs: 50   # max budget; early stopping (configs/training/default.yaml) ends trials sooner
+
+hydra:
+  sweeper:
+    sampler:
+      seed: ${seed}
+      n_startup_trials: 10
+    direction: minimize
+
+    n_trials: 50
+    n_jobs: 1
+    params:
+      model.grid_size: range(3, 51)

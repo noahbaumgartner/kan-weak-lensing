@@ -1,6 +1,7 @@
 # @package _global_
 defaults:
   - /sweep/tune_base
+  - /sweep/image/_optimizer_sweep
   - /sweep/image/_reduction_sweep
   - override /model: fastkan
 

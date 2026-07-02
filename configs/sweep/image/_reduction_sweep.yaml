@@ -1,10 +1,16 @@
 # @package _global_
 #
-# Shared Optuna ranges for the image->vector reduction knobs + optimizer,
-# included by every MLP-style tune_*.yaml (fastkan/fasterkan/efficientkan/
-# wavkan) so the block isn't copy-pasted four times.
+# Reduction-only ranges (no optimizer). Composed with _optimizer_sweep.yaml in
+# two ways:
+#   * tune_<model>.yaml (single-stage "everything at once") includes both this
+#     and _optimizer_sweep.yaml together.
+#   * tune_<model>_reduction.yaml (Stage 2 of the staged workflow, see README
+#     "Gestaffeltes Sweeping") includes only this alongside its own model.*
+#     params, while architecture (model.n_hidden_layers/hidden_width_*) and
+#     optimizer.lr/weight_decay are PINNED via fixed CLI overrides to the
+#     winning values found in Stage 1.
 #
-# Reduction *method* (avgpool | conv) is swept too (dataset.reduction below) —
+# Reduction *method* (avgpool | conv) is swept (dataset.reduction below) —
 # each trial picks one method; the other method's knobs are simply no-ops for
 # that trial. pool_stride 5-8 and conv_channels<=128 keep input_dim moderate
 # (no full-resolution flatten -> no CUDA OOM; WavKAN in particular is
@@ -12,8 +18,6 @@
 hydra:
   sweeper:
     params:
-      optimizer.lr: tag(log, interval(1e-5, 5e-3))
-      optimizer.weight_decay: tag(log, interval(1e-6, 1e-2))
       dataset.reduction: choice(avgpool, conv)
       dataset.pool_stride: range(5, 9)
       dataset.conv_channels: choice(16, 32, 64, 128)

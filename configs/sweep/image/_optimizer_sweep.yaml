@@ -1,0 +1,15 @@
+# @package _global_
+#
+# Optimizer-only ranges. Composed with _reduction_sweep.yaml in two ways:
+#   * tune_<model>.yaml (single-stage "everything at once") includes both this
+#     and _reduction_sweep.yaml together.
+#   * tune_<model>_arch.yaml (Stage 1 of the staged workflow, see README
+#     "Gestaffeltes Sweeping") includes only this + /sweep/tune_base
+#     (architecture) — reduction/model-specific params stay fixed at their
+#     config defaults (avgpool, dataset.pool_stride=8) so they don't confound
+#     the Stage-1 search.
+hydra:
+  sweeper:
+    params:
+      optimizer.lr: tag(log, interval(1e-5, 5e-3))
+      optimizer.weight_decay: tag(log, interval(1e-6, 1e-2))

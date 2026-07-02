@@ -1,0 +1,21 @@
+# @package _global_
+#
+# Stage 1 of the staged fastkan sweep (siehe README "Gestaffeltes Sweeping"):
+# nur Architektur (model.n_hidden_layers/hidden_width_*) + Optimizer.
+# model.num_grids und dataset.reduction bleiben auf ihren Config-Defaults
+# (num_grids=8, reduction=avgpool) fixiert.
+#
+# Nach diesem Lauf: besten Trial in MLflow ansehen, dessen Architektur- und
+# Optimizer-Werte als fixe Overrides in Stage 2
+# (tune_fastkan_reduction.yaml, via EXTRA_weak_lensing) mitgeben.
+defaults:
+  - /sweep/tune_base
+  - /sweep/image/_optimizer_sweep
+  - override /model: fastkan
+
+training:
+  epochs: 50   # max budget; early stopping (configs/training/default.yaml) ends trials sooner
+
+hydra:
+  sweeper:
+    n_trials: 50

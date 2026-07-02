@@ -102,9 +102,9 @@ Setup identisch zu `kan-lab`. Tracking-URI Default: `http://127.0.0.1:9299`
 Sweep-Konfigurationen liegen unter `configs/sweep/`. `tune_base.yaml` definiert
 den Optuna/TPE-Sweeper; die modell-spezifischen Sweeps erben davon. Die
 Reduction (`avgpool` | `conv`) ist Teil des Sweeps (`dataset.reduction` in
-`configs/sweep/image/_reduction_sweep.yaml` bzw. `tune_ensemble.yaml`) — jeder
-Trial wählt eine Methode; die Knöpfe der jeweils anderen Methode sind für
-diesen Trial ein No-op.
+`configs/sweep/image/_reduction_sweep.yaml` bzw. `tune_ensemble.yaml`) —
+jeder Trial wählt eine Methode; die Knöpfe der jeweils anderen Methode sind
+für diesen Trial ein No-op.
 
 ```bash
 # Einzelnen Sweep lokal laufen lassen (Default-objective aus config.yaml = score);
@@ -120,6 +120,51 @@ uv run python main.py --multirun +sweep=image/tune_fastkan objective=mse
 # Versuch im Sweep: per Env an den Submit-Job geben, z.B.
 sbatch --export=ALL,EXPERIMENT=wl_mse,OBJECTIVE=mse scripts/tune_fastkan.submit
 ```
+
+### Gestaffeltes Sweeping (Stage 1 / Stage 2)
+
+Ein einzelner Sweep über Architektur + Optimizer + modellspezifische Params +
+Reduction auf einmal hat zu viele Kombinationen, um innerhalb von 3 Tagen
+(SLURM-Zeitlimit) zu konvergieren. Für jedes Modell (`efficientkan`,
+`fastkan`, `fasterkan`, `wavkan`, `ensemble`, `kkan`, `kat`) existiert daher
+zusätzlich zum bisherigen "alles auf einmal"-Sweep (`tune_<model>.yaml`) ein
+gestaffeltes Paar:
+
+* **Stage 1** (`tune_<model>_arch.yaml`): sweept nur Architektur
+  (`model.n_hidden_layers`/`hidden_width_*`, bzw. bei kkan/kat die
+  Transformer-/Trainings-Kapazitätsknöpfe) + Optimizer (`lr`,
+  `weight_decay`). Reduction bleibt auf `avgpool` (Dataset-Default),
+  modellspezifische Params (`grid_size`, `num_grids`, `wavelet_type`, ...)
+  bleiben auf ihrem Config-Default fixiert.
+* **Stage 2** (`tune_<model>_reduction.yaml`, bei kkan/kat
+  `tune_<model>_model.yaml` da kein Reduction-Wrapper existiert): sweept
+  modellspezifische Params + Reduction-Methode/-Knobs. Architektur und
+  Optimizer werden **nicht** erneut gesweept, sondern müssen als feste
+  Hydra-Overrides von Stage 1 übernommen werden.
+
+Ablauf:
+
+```bash
+# Stage 1: Architektur + Optimizer sweepen
+sbatch --export=ALL,EXPERIMENT=wl_efficientkan,SWEEP=image/tune_efficientkan_arch \
+  scripts/tune_efficientkan.submit
+
+# In MLflow den besten Stage-1-Trial ansehen (kleinster val loss), dessen
+# model.n_hidden_layers/hidden_width_*/optimizer.lr/weight_decay notieren.
+
+# Stage 2: modellspezifische Params + Reduction sweepen, Stage-1-Gewinner
+# fest mitgeben (EXTRA_weak_lensing wird von _tune_common.sh als zusätzliche
+# Hydra-Overrides durchgereicht)
+sbatch --export=ALL,EXPERIMENT=wl_efficientkan,SWEEP=image/tune_efficientkan_reduction,\
+EXTRA_weak_lensing="model.n_hidden_layers=2 model.hidden_width_0=494 model.hidden_width_1=409 optimizer.lr=8e-4 optimizer.weight_decay=1e-5" \
+  scripts/tune_efficientkan.submit
+```
+
+Die Übergabe ist bewusst manuell (kein automatisches Auslesen des besten
+Trials) — einfach zu kontrollieren, kein zusätzlicher Code. Für `kkan`/`kat`
+gilt dasselbe Schema, nur ohne Reduction-Teil (siehe Kommentare in
+`configs/sweep/image/tune_kkan_arch.yaml` / `tune_kat_arch.yaml`); für
+`ensemble` immer zusammen mit `objective=ensemble` laufen lassen.
 
 ## Struktur
 

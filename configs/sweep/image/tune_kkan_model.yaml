@@ -1,0 +1,30 @@
+# @package _global_
+#
+# Stage 2 of the staged kkan sweep (siehe README "Gestaffeltes Sweeping"):
+# nur model.grid_size (kein Reduction-Wrapper bei KKAN). Optimizer und
+# training.batch_size werden NICHT hier gesweept, sondern muessen als fixe
+# Overrides von Stage 1 (tune_kkan_arch.yaml) mitgegeben werden, z.B.:
+#   sbatch --export=ALL,EXPERIMENT=...,SWEEP=image/tune_kkan_model,\
+#     EXTRA_weak_lensing="training.batch_size=128 optimizer.lr=8e-4 \
+#     optimizer.weight_decay=1e-5" scripts/tune_kkan.submit
+defaults:
+  - override /hydra/sweeper: optuna
+  - override /hydra/sweeper/sampler: tpe
+  - override /model: kkan
+
+seed: 42
+
+training:
+  epochs: 25
+
+hydra:
+  sweeper:
+    sampler:
+      seed: ${seed}
+      n_startup_trials: 10
+    direction: minimize
+
+    n_trials: 25
+    n_jobs: 1
+    params:
+      model.grid_size: range(3, 21)
