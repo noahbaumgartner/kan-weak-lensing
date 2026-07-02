@@ -107,7 +107,7 @@ class Trainer:
                 epochs=cfg.training.epochs,
                 optimizer_factory=optimizer_factory,
                 loss_fn=loss_fn,
-                batch_size=cfg.training.get("batch_size", -1),
+                batch_size=cfg.training.batch_size,
                 lamb=cfg.training.get("lamb", 0.0),
                 num_workers=cfg.training.get("num_workers", 0),
                 prefetch_factor=cfg.training.get("prefetch_factor", 4),

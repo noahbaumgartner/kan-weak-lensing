@@ -3,7 +3,6 @@ defaults:
   - override /hydra/sweeper: optuna
   - override /hydra/sweeper/sampler: tpe
   - override /model: kkan
-  - override /training: adam
 
 seed: 42
 

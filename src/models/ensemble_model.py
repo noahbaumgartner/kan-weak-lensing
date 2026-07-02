@@ -2,7 +2,7 @@ import copy
 
 import torch
 from torch import nn
-from torch.utils.data import DataLoader, Dataset, Subset, TensorDataset
+from torch.utils.data import DataLoader, Subset
 from tqdm import tqdm
 
 from .base import BaseKANModel
@@ -110,7 +110,6 @@ class EnsembleModel(BaseKANModel):
         loss_fn,
         batch_size,
         lamb,
-        epoch_callback=None,
         extra_eval_metrics_fn=None,
         **kwargs,
     ):
@@ -130,20 +129,11 @@ class EnsembleModel(BaseKANModel):
         device = self.device
 
         # --- data handling (mirrors BaseKANModel.fit) ---
-        ti = dataset["train_input"]
-        vi = dataset.get("val_input", dataset.get("test_input"))
-        if isinstance(ti, Dataset):
-            train_ds = ti
-        else:
-            train_ds = TensorDataset(ti, dataset["train_label"])
-        if isinstance(vi, Dataset):
-            val_ds = vi
-        else:
-            vl = dataset.get("val_label")
-            val_ds = TensorDataset(vi, vl)
+        train_ds = dataset["train_input"]
+        val_ds = dataset["val_input"]
 
         n_train = len(train_ds)
-        bs = n_train if (batch_size == -1 or batch_size >= n_train) else batch_size
+        bs = min(batch_size, n_train)
         pin = device != "cpu"
         nw = int(kwargs.get("num_workers", 0))
         loader_kwargs = dict(pin_memory=pin, num_workers=nw)
@@ -167,7 +157,7 @@ class EnsembleModel(BaseKANModel):
                 member_idx = torch.randperm(n_train, generator=gen)[:k]
             member_ds = Subset(train_ds, member_idx.tolist())
             n_sub = len(member_ds)
-            sub_bs = n_sub if (batch_size == -1 or batch_size >= n_sub) else batch_size
+            sub_bs = min(batch_size, n_sub)
             member_loaders.append(
                 DataLoader(member_ds, batch_size=sub_bs, shuffle=True, **loader_kwargs)
             )
@@ -177,7 +167,7 @@ class EnsembleModel(BaseKANModel):
         mse = lambda p, t: torch.mean((p - t) ** 2)
 
         results: dict[str, list] = {
-            "train_loss": [], "test_loss": [], "reg": [],
+            "train_loss": [], "test_loss": [],
             "mse": [], "coverage": [], "score_loss": [],
         }
         extra_metric_keys: list[str] = []
@@ -231,16 +221,12 @@ class EnsembleModel(BaseKANModel):
 
             results["train_loss"].append(train_mse)
             results["test_loss"].append(val_loss)
-            results["reg"].append(0.0)
             if extra_eval_metrics_fn is not None:
                 for k, total in extra_sums.items():
                     if k not in extra_metric_keys:
                         extra_metric_keys.append(k)
                         results.setdefault(k, [])
                     results[k].append((total / val_total).item())
-
-            if epoch_callback is not None:
-                epoch_callback(epoch, self)
 
             if stopper.step(epoch, val_loss, self.model):
                 break

@@ -4,17 +4,18 @@
 # included by every MLP-style tune_*.yaml (fastkan/fasterkan/efficientkan/
 # wavkan) so the block isn't copy-pasted four times.
 #
-# Reduction *method* (avgpool | conv) is set per job via REDUCTION=... (default
-# avgpool), NOT swept. Both methods' knobs are swept together; the inactive
-# method's params are no-ops. pool_stride 5-8 and conv_channels<=128 keep
-# input_dim moderate (no full-resolution flatten -> no CUDA OOM; WavKAN in
-# particular is memory-heavy, so don't lower pool_stride below 5).
+# Reduction *method* (avgpool | conv) is swept too (dataset.reduction below) —
+# each trial picks one method; the other method's knobs are simply no-ops for
+# that trial. pool_stride 5-8 and conv_channels<=128 keep input_dim moderate
+# (no full-resolution flatten -> no CUDA OOM; WavKAN in particular is
+# memory-heavy, so don't lower pool_stride below 5).
 hydra:
   sweeper:
     params:
       optimizer.lr: tag(log, interval(1e-5, 5e-3))
       optimizer.weight_decay: tag(log, interval(1e-6, 1e-2))
+      dataset.reduction: choice(avgpool, conv)
       dataset.pool_stride: range(5, 9)
-      dataset.conv_channels: range(16, 129)
+      dataset.conv_channels: choice(16, 32, 64, 128)
       dataset.conv_layers: range(1, 4)
       dataset.conv_kernel: choice(3, 5, 7)

@@ -9,10 +9,10 @@ if [[ $# -ne 1 ]]; then
   echo "  Env overrides (forwarded to the jobs via --export=ALL):" >&2
   echo "    MODELS=\"fastkan wavkan\"  models to submit (default: fastkan fasterkan efficientkan wavkan)" >&2
   echo "    OBJECTIVE=mse|score      training objective (default: config.yaml = score)" >&2
-  echo "    REDUCTION=avgpool|conv   image->vector reduction for MLP models (default: avgpool)" >&2
   echo "" >&2
-  echo "  Reduction is fixed per job, not swept. kkan/kat are excluded by default" >&2
-  echo "  (not yet adapted to weak lensing, tend to OOM); add them back via MODELS=." >&2
+  echo "  Image->vector reduction (avgpool|conv) is swept per trial by Optuna for" >&2
+  echo "  MLP models, not fixed per job. kkan/kat are excluded by default (not yet" >&2
+  echo "  adapted to weak lensing, tend to OOM); add them back via MODELS=." >&2
   exit 1
 fi
 

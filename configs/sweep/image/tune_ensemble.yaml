@@ -8,12 +8,11 @@
 defaults:
   - override /hydra/sweeper: optuna
   - override /hydra/sweeper/sampler: tpe
-  - override /training: adam
 
 seed: 42
 
 training:
-  epochs: 50   # max budget; early stopping (configs/training/adam.yaml) ends trials sooner
+  epochs: 50   # max budget; early stopping (configs/training/default.yaml) ends trials sooner
 
 hydra:
   sweeper:
@@ -31,11 +30,12 @@ hydra:
       model.member.num_grids: range(4, 33)
       optimizer.lr: tag(log, interval(1e-5, 5e-3))
       optimizer.weight_decay: tag(log, interval(1e-6, 1e-2))
+      dataset.reduction: choice(avgpool, conv)
       dataset.pool_stride: range(5, 9)        # avgpool-Staerke (No-op bei conv); >=5 haelt input_dim klein, vermeidet CUDA OOM
       dataset.conv_channels: range(16, 129)   # conv: == input_dim (No-op bei avgpool)
       dataset.conv_layers: range(1, 4)
       dataset.conv_kernel: choice(3, 5, 7)
-# Reduktions-*Methode* (avgpool | conv) wird pro Job via REDUCTION=... gesetzt
-# (Default avgpool), NICHT gesweept. Beide Methoden-Knoepfe werden zusammen
-# gesweept; der jeweils inaktive Satz ist ein No-op. pool_stride 4-8 und
-# conv_channels<=128 halten input_dim moderat (kein voller Flatten -> kein OOM).
+# Reduktions-*Methode* (avgpool | conv) wird jetzt pro Trial gesweept
+# (dataset.reduction oben). Beide Methoden-Knoepfe werden immer mitgesweept;
+# der jeweils inaktive Satz ist fuer diesen Trial ein No-op. pool_stride 4-8
+# und conv_channels<=128 halten input_dim moderat (kein voller Flatten -> kein OOM).

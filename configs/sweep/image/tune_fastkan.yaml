@@ -3,10 +3,9 @@ defaults:
   - /sweep/tune_base
   - /sweep/image/_reduction_sweep
   - override /model: fastkan
-  - override /training: adam
 
 training:
-  epochs: 50   # max budget; early stopping (configs/training/adam.yaml) ends trials sooner
+  epochs: 50   # max budget; early stopping (configs/training/default.yaml) ends trials sooner
 
 hydra:
   sweeper:

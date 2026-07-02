@@ -10,8 +10,9 @@ set -euo pipefail
 #   DATASETS  — space-separated list of dataset names
 #   OBJECTIVE — Versuch / training objective (e.g. score | mse). If set, passed
 #               as objective=${OBJECTIVE}; otherwise the config.yaml default is used.
-#   REDUCTION — image->vector reduction, avgpool | conv (default: avgpool).
-#               Not swept — fixed for the whole job.
+# Image->vector reduction (avgpool | conv) is swept per trial by the Optuna
+# sweeper (dataset.reduction in configs/sweep/image/_reduction_sweep.yaml) —
+# not fixed per job, so it's not an override here.
 SWEEP="${SWEEP:-image/tune_${MODEL}}"
 OBJECTIVE_ARG=()
 if [[ -n "${OBJECTIVE:-}" ]]; then
@@ -24,7 +25,6 @@ fi
 if [[ -n "${SLURM_JOB_ID:-}" ]]; then
   scontrol update JobId="${SLURM_JOB_ID}" JobName="kan_tune_${MODEL}_${OBJECTIVE:-default}" 2>/dev/null || true
 fi
-REDUCTION="${REDUCTION:-avgpool}"
 if [[ -n "${DATASETS:-}" ]]; then
   read -r -a DATASETS <<< "${DATASETS}"
 else
@@ -84,7 +84,6 @@ for dataset in "${DATASETS[@]}"; do
   HYDRA_FULL_ERROR=1 uv run main.py --multirun \
     +sweep="${SWEEP}" \
     dataset="${dataset}" \
-    dataset.reduction="${REDUCTION}" \
     "${OBJECTIVE_ARG[@]}" \
     "${extra[@]}" \
     mlflow_tracking_uri="${MLFLOW_TRACKING_URI}" \

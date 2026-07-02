@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 import torch
-from torch.utils.data import DataLoader, Dataset, TensorDataset
+from torch.utils.data import DataLoader
 from tqdm import tqdm
 
 from src.training.early_stopping import EarlyStopping
@@ -34,7 +34,6 @@ class BaseKANModel(ABC):
         loss_fn,
         batch_size,
         lamb,
-        epoch_callback=None,
         extra_eval_metrics_fn=None,
         early_stopping=False,
         es_patience=10,
@@ -46,28 +45,13 @@ class BaseKANModel(ABC):
         # the model's device on demand. Preloading the full dataset to GPU
         # OOMs for larger sets like MNIST.
         #
-        # Two input conventions are supported:
-        #   1. legacy: dataset["train_input"] / ["train_label"] are tensors
-        #      and we wrap them in a TensorDataset here.
-        #   2. lazy:   dataset["train_input"] is already a torch Dataset
-        #      yielding (x, y) — used by datasets that can't fit fully in
-        #      RAM (e.g. weak_lensing). Labels live on the Dataset itself.
-        # Validation uses "val_input" if provided, else falls back to
-        # "test_input" (the older convention).
-        ti = dataset["train_input"]
-        vi = dataset.get("val_input", dataset.get("test_input"))
-        if isinstance(ti, Dataset):
-            train_ds = ti
-        else:
-            train_ds = TensorDataset(ti, dataset["train_label"])
-        if isinstance(vi, Dataset):
-            val_ds = vi
-        else:
-            vl = dataset.get("val_label")
-            val_ds = TensorDataset(vi, vl)
+        # dataset["train_input"] / ["val_input"] are torch Datasets yielding
+        # (x, y) — used by datasets that can't fit fully in RAM (weak_lensing).
+        train_ds = dataset["train_input"]
+        val_ds = dataset["val_input"]
 
         n_train = len(train_ds)
-        bs = n_train if (batch_size == -1 or batch_size >= n_train) else batch_size
+        bs = min(batch_size, n_train)
 
         pin = self.device != "cpu"
         nw = int(kwargs.get("num_workers", 0))
@@ -80,7 +64,7 @@ class BaseKANModel(ABC):
 
         opt = optimizer_factory(self.get_model().parameters())
 
-        results = {"train_loss": [], "test_loss": [], "reg": []}
+        results = {"train_loss": [], "test_loss": []}
         # Extra eval metrics get one list per key, populated on the val
         # set after each epoch.  Keys are discovered from the first batch.
         extra_metric_keys: list[str] = []
@@ -143,10 +127,6 @@ class BaseKANModel(ABC):
 
             results["train_loss"].append(train_mse)
             results["test_loss"].append(val_mse)
-            results["reg"].append(0.0)
-
-            if epoch_callback is not None:
-                epoch_callback(epoch, self)
 
             if stopper.step(epoch, val_mse, self.get_model()):
                 break

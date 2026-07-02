@@ -20,13 +20,13 @@ Direkt über Hydra:
 
 ```bash
 # fastkan auf weak_lensing (Default-objective score)
-uv run python main.py model=fastkan dataset=weak_lensing training=adam
+uv run python main.py model=fastkan dataset=weak_lensing
 
 # anderes Modell / Hydra-Overrides
-uv run python main.py model=fasterkan dataset=weak_lensing training=adam training.epochs=5 model.num_grids=16
+uv run python main.py model=fasterkan dataset=weak_lensing training.epochs=5 model.num_grids=16
 
 # Reduction waehlen (Default avgpool)
-uv run python main.py model=wavkan dataset=weak_lensing training=adam dataset.reduction=conv
+uv run python main.py model=wavkan dataset=weak_lensing dataset.reduction=conv
 ```
 
 Der Pfad zu den `.npy`-Dateien wird in `configs/dataset/weak_lensing.yaml`
@@ -101,22 +101,24 @@ Setup identisch zu `kan-lab`. Tracking-URI Default: `http://127.0.0.1:9299`
 
 Sweep-Konfigurationen liegen unter `configs/sweep/`. `tune_base.yaml` definiert
 den Optuna/TPE-Sweeper; die modell-spezifischen Sweeps erben davon. Die
-Reduction (`avgpool` | `conv`) ist **nicht** Teil des Sweeps, sondern wird
-fix pro Job über `REDUCTION` mitgegeben (Default `avgpool`).
+Reduction (`avgpool` | `conv`) ist Teil des Sweeps (`dataset.reduction` in
+`configs/sweep/image/_reduction_sweep.yaml` bzw. `tune_ensemble.yaml`) — jeder
+Trial wählt eine Methode; die Knöpfe der jeweils anderen Methode sind für
+diesen Trial ein No-op.
 
 ```bash
-# Einzelnen Sweep lokal laufen lassen (Default-objective aus config.yaml = score)
+# Einzelnen Sweep lokal laufen lassen (Default-objective aus config.yaml = score);
+# sweept dataset.reduction (avgpool/conv) automatisch mit
 uv run python main.py --multirun +sweep=image/tune_fastkan dataset=weak_lensing
 
-# Sweep mit anderem Versuch / anderer Reduction
-uv run python main.py --multirun +sweep=image/tune_fastkan objective=mse dataset.reduction=conv
+# Sweep mit anderem Versuch
+uv run python main.py --multirun +sweep=image/tune_fastkan objective=mse
 
 # Alle Modelle auf dem Cluster submitten (fastkan, fasterkan, efficientkan,
 # wavkan, kkan, kat) — ein Job pro Modell
 ./scripts/submit_all.sh <experiment_name>
-# Versuch / Reduction im Sweep: per Env an den Submit-Job geben, z.B.
+# Versuch im Sweep: per Env an den Submit-Job geben, z.B.
 sbatch --export=ALL,EXPERIMENT=wl_mse,OBJECTIVE=mse scripts/tune_fastkan.submit
-sbatch --export=ALL,EXPERIMENT=wl_conv,REDUCTION=conv scripts/tune_fastkan.submit
 ```
 
 ## Struktur
