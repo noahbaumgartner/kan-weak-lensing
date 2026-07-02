@@ -1,2 +1,0 @@
-_target_: src.optimizers.LBFGS
-lr: 1.0

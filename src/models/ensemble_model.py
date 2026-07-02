@@ -92,7 +92,7 @@ class EnsembleModel(BaseKANModel):
         # (n_members, B, P) with P = number of predicted parameters (2)
         return torch.stack([m.predict(x) for m in self.members], dim=0)
 
-    def predict(self, x: torch.Tensor, update_grid: bool = False) -> torch.Tensor:
+    def predict(self, x: torch.Tensor) -> torch.Tensor:
         preds = self._member_preds(x)            # (N, B, P)
         mu = preds.mean(dim=0)                    # (B, P)
         if preds.shape[0] > 1:
@@ -125,7 +125,7 @@ class EnsembleModel(BaseKANModel):
         spread between members be read as a real predictive standard deviation
         (bagging) rather than mere initialisation noise. The val metrics are
         computed on the *combined* Gaussian prediction, reusing the
-        Trainer-supplied ``loss_fn`` (score_inference) and
+        Trainer-supplied ``loss_fn`` (score_loss_fn) and
         ``extra_eval_metrics_fn`` (eval_metric_sums) for full consistency with
         the single-model score Versuch.
         """
@@ -176,8 +176,6 @@ class EnsembleModel(BaseKANModel):
         val_loader = DataLoader(val_ds, batch_size=bs, shuffle=False, **loader_kwargs)
 
         opt = optimizer_factory(self.model.parameters())
-        if isinstance(opt, torch.optim.LBFGS):
-            raise ValueError("EnsembleModel does not support the LBFGS optimizer; use adam/adamw/sgd.")
         mse = lambda p, t: torch.mean((p - t) ** 2)
 
         results: dict[str, list] = {

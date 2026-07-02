@@ -17,7 +17,7 @@ def _split(pred: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor
     return mu, log_sigma, torch.exp(log_sigma)
 
 
-def score_inference_loss(
+def score_loss_fn(
     pred: torch.Tensor, target: torch.Tensor, lam: float = 1e3
 ) -> torch.Tensor:
     mu, log_sigma, _ = _split(pred)

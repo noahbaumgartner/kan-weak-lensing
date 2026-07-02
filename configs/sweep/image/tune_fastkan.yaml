@@ -1,6 +1,7 @@
 # @package _global_
 defaults:
   - /sweep/tune_base
+  - /sweep/image/_reduction_sweep
   - override /model: fastkan
   - override /training: adam
 
@@ -11,15 +12,4 @@ hydra:
   sweeper:
     n_trials: 50
     params:
-      optimizer: choice(adam, adamw)
       model.num_grids: range(4, 51)
-      optimizer.lr: tag(log, interval(1e-5, 5e-3))
-      ++optimizer.weight_decay: tag(log, interval(1e-6, 1e-2))
-      dataset.pool_stride: range(5, 9)        # avgpool strength (no-op for conv); >=5 keeps input_dim small to avoid CUDA OOM
-      dataset.conv_channels: range(16, 129)   # conv: == input_dim (no-op for avgpool)
-      dataset.conv_layers: range(1, 4)
-      dataset.conv_kernel: choice(3, 5, 7)
-# Reduction *method* (avgpool | conv) is set per job via REDUCTION=... (default
-# avgpool), NOT swept. Both methods' knobs are swept together; the inactive
-# method's params are no-ops. pool_stride 4-8 and conv_channels<=128 keep
-# input_dim moderate (no full-resolution flatten -> no OOM).

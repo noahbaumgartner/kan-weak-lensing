@@ -19,7 +19,7 @@ def collect_predictions(model, val_input, val_label, device, batch_size=512):
     Both are returned in the same (standardized or not) space the labels
     were already in — callers unstandardize afterwards if needed. Only the
     mean head is kept for models that also predict an uncertainty (e.g.
-    score_inference's (mu, log_sigma) output).
+    the score objective's (mu, log_sigma) output).
     """
     if isinstance(val_input, Dataset):
         val_ds = val_input

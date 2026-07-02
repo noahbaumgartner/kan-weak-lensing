@@ -8,7 +8,7 @@ from src.modules.kat import KATVisionTransformer
 class KATModel(BaseKANModel):
     def __init__(
         self,
-        num_classes,
+        output_dim,
         img_h=28,
         img_w=28,
         patch_size=4,
@@ -27,7 +27,7 @@ class KATModel(BaseKANModel):
         weight_init="kan",
         **kwargs,
     ):
-        self.num_classes = num_classes
+        self.output_dim = output_dim
         self.img_h = img_h
         self.img_w = img_w
         self.patch_size = patch_size
@@ -50,7 +50,7 @@ class KATModel(BaseKANModel):
             img_size=(self.img_h, self.img_w),
             patch_size=self.patch_size,
             in_chans=self.in_chans,
-            num_classes=self.num_classes,
+            num_classes=self.output_dim,
             embed_dim=self.embed_dim,
             depth=self.depth,
             num_heads=self.num_heads,
@@ -74,7 +74,7 @@ class KATModel(BaseKANModel):
         the weak-lensing maps are (B, 1, 1424, 176) and are bilinearly resized
         to ``img_h x img_w`` here. img_h/img_w keep the native 8:1 aspect ratio
         (default 178x22 = 1424x176 / 8), so the map is downscaled without
-        distortion; both must be divisible by patch_size. The num_classes
+        distortion; both must be divisible by patch_size. The output_dim
         outputs double as the (Om, S8) regression head under objective=mse.
         """
         x = x.to(self.device)
@@ -89,5 +89,5 @@ class KATModel(BaseKANModel):
             )
         return x
 
-    def predict(self, x: torch.Tensor, update_grid: bool = False) -> torch.Tensor:
+    def predict(self, x: torch.Tensor) -> torch.Tensor:
         return self.model(self._prepare_input(x))

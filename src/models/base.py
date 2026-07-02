@@ -18,7 +18,7 @@ class BaseKANModel(ABC):
     def regularization_loss(self) -> float:
         return 0.0
 
-    def predict(self, x: torch.Tensor, update_grid: bool = False) -> torch.Tensor:
+    def predict(self, x: torch.Tensor) -> torch.Tensor:
         return self.model(x)
 
     def parameter_count(self) -> int:
@@ -81,9 +81,8 @@ class BaseKANModel(ABC):
         val_loader = DataLoader(val_ds, batch_size=bs, shuffle=False, **loader_kwargs)
 
         opt = optimizer_factory(self.get_model().parameters())
-        is_lbfgs = isinstance(opt, torch.optim.LBFGS)
         # Gradient clipping (max L2 norm). Off by default; datasets with a
-        # large-scale loss (e.g. weak_lensing's λ=1e3 score_inference) set
+        # large-scale loss (e.g. weak_lensing's λ=1e3 score loss) set
         # ``training.grad_clip`` to keep updates from diverging to NaN.
         clip = float(grad_clip) if grad_clip else None
 
@@ -108,38 +107,18 @@ class BaseKANModel(ABC):
             for x, y in train_loader:
                 x = x.to(device, non_blocking=True)
                 y = y.to(device, non_blocking=True)
-                if is_lbfgs:
-                    captured = {}
-
-                    def closure():
-                        opt.zero_grad(set_to_none=True)
-                        pred = self.predict(x)
-                        data_loss = loss_fn(pred, y)
-                        captured["data_loss"] = data_loss.detach()
-                        reg = self.regularization_loss()
-                        loss = data_loss + lamb * reg if reg > 0 else data_loss
-                        loss.backward()
-                        if clip is not None:
-                            torch.nn.utils.clip_grad_norm_(
-                                self.get_model().parameters(), clip
-                            )
-                        return loss
-
-                    opt.step(closure)
-                    data_loss = captured["data_loss"]
-                else:
-                    opt.zero_grad(set_to_none=True)
-                    pred = self.predict(x)
-                    data_loss = loss_fn(pred, y)
-                    reg = self.regularization_loss()
-                    loss = data_loss + lamb * reg if reg > 0 else data_loss
-                    loss.backward()
-                    if clip is not None:
-                        torch.nn.utils.clip_grad_norm_(
-                            self.get_model().parameters(), clip
-                        )
-                    opt.step()
-                    data_loss = data_loss.detach()
+                opt.zero_grad(set_to_none=True)
+                pred = self.predict(x)
+                data_loss = loss_fn(pred, y)
+                reg = self.regularization_loss()
+                loss = data_loss + lamb * reg if reg > 0 else data_loss
+                loss.backward()
+                if clip is not None:
+                    torch.nn.utils.clip_grad_norm_(
+                        self.get_model().parameters(), clip
+                    )
+                opt.step()
+                data_loss = data_loss.detach()
 
                 bs_x = x.shape[0]
                 train_loss_sum = train_loss_sum + data_loss * bs_x

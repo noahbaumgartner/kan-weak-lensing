@@ -80,8 +80,8 @@ class KKAN_Small(nn.Module):
 
 
 class KKANModel(BaseKANModel):
-    def __init__(self, num_classes, img_h=28, img_w=28, in_chans=1, grid_size=5, **kwargs):
-        self.num_classes = num_classes
+    def __init__(self, output_dim, img_h=28, img_w=28, in_chans=1, grid_size=5, **kwargs):
+        self.output_dim = output_dim
         self.img_h = img_h
         self.img_w = img_w
         self.in_chans = in_chans
@@ -93,7 +93,7 @@ class KKANModel(BaseKANModel):
             img_h=self.img_h,
             img_w=self.img_w,
             in_chans=self.in_chans,
-            num_classes=self.num_classes,
+            num_classes=self.output_dim,
         ).to(device)
         self.device = device
 
@@ -104,7 +104,7 @@ class KKANModel(BaseKANModel):
         size; the weak-lensing maps are (B, 1, 1424, 176) and are bilinearly
         resized to ``img_h x img_w`` here. img_h/img_w keep the native 8:1
         aspect ratio (default 178x22 = 1424x176 / 8), so the map is downscaled
-        without distortion. The 2 raw outputs double as the (Om, S8)
+        without distortion. The output_dim raw outputs double as the (Om, S8)
         regression head under objective=mse.
         """
         x = x.to(self.device)
@@ -119,5 +119,5 @@ class KKANModel(BaseKANModel):
             )
         return x
 
-    def predict(self, x: torch.Tensor, update_grid: bool = False) -> torch.Tensor:
+    def predict(self, x: torch.Tensor) -> torch.Tensor:
         return self.model(self._prepare_input(x))

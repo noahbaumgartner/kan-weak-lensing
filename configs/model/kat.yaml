@@ -1,6 +1,6 @@
 _target_: src.models.kat_model.KATModel
 
-num_classes: ${dataset.output_dim}
+output_dim: ${dataset.output_dim}
 img_h: ${dataset.img_size_h}
 img_w: ${dataset.img_size_w}
 in_chans: ${dataset.in_chans}

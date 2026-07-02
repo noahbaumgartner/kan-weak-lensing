@@ -13,7 +13,7 @@ epoch rather than the post-plateau tail.
 if it beats the running best by at least ``min_delta * abs(best)`` (e.g.
 ``0.005`` -> 0.5%). Relative (not absolute) because the monitored loss lives on
 wildly different scales per objective — raw-label MSE is O(0.1-1) while the
-score_inference loss carries a λ=1e3 penalty — so no single absolute delta would
+score loss carries a λ=1e3 penalty — so no single absolute delta would
 suit both. ``min_delta == 0`` reduces to "any decrease counts". The restored /
 truncated epoch is the last min_delta-qualified best, so the kept model, the
 logged finals and the returned objective all agree.

@@ -39,7 +39,7 @@ Modell-Head-Breite. Gewählt über die Hydra-Gruppe `configs/objective/`:
 
 | objective   | Outputs | Loss             | Trainer-Pfad / Logging          |
 |-------------|---------|------------------|---------------------------------|
-| `score`     | 4       | `score_inference`| Score + 68%-Coverage + MSE(mu)  |
+| `score`     | 4       | `score_loss_fn`  | Score + 68%-Coverage + MSE(mu)  |
 | `mse`       | 2       | MSE              | MSE / RMSE / R²                 |
 | `ensemble`  | 4*      | MSE pro Member   | Score + 68%-Coverage + MSE(mu)  |
 
@@ -77,13 +77,14 @@ eigener, größerer Versuch.
 
 Der Datensatz behält immer die 2 Labels (Om, S8); pro Versuch ändert sich nur
 der Head (`output_dim`) und der Loss — der Trainer wählt den passenden
-Eval-/Logging-Pfad automatisch anhand von `dataset.loss`.
+Eval-/Logging-Pfad automatisch anhand des top-level `objective`-Felds
+(`src/training/trainer.py::_SCORE_OBJECTIVES`).
 
 **Weiteren Versuch hinzufügen:** neue Datei `configs/objective/<name>.yaml` mit
-`# @package _global_` anlegen, darin `dataset.loss`, `dataset.output_dim`,
+`# @package _global_` anlegen, darin `objective: <name>`, `dataset.output_dim`,
 `dataset.num_targets` (und ggf. `training.*`) setzen. Bei einem neuen Loss
-zusätzlich `src/training/trainer.py::_create_loss_fn` erweitern. Lauf:
-`objective=<name>`.
+zusätzlich `src/training/trainer.py::_create_loss_fn` und `_SCORE_OBJECTIVES`
+erweitern. Lauf: `objective=<name>`.
 
 ## MLflow
 
@@ -128,7 +129,7 @@ src/
   dataset.py                WeakLensingDataset (einziger Datensatz)
   models/                   Modell-Wrapper (fastkan, fasterkan, efficientkan, wavkan, kkan, kat) + base
   modules/                  KAN-Implementierungen + reduction (image -> vector)
-  optimizers/               Adam, AdamW, SGD, LBFGS
+  optimizers/               Adam
   training/                 Trainer + Weak-Lensing-Scoring (metrics.py)
 scripts/                    MLflow-Server + SLURM-Tuning-Jobs
 ```

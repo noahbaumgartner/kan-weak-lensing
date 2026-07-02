@@ -17,9 +17,10 @@
 defaults:
   - override /model: ensemble
 
+# Score-Logging-Pfad (Score + 68%-Coverage + MSE) im Trainer — siehe
+# _SCORE_OBJECTIVES in src/training/trainer.py.
+objective: ensemble
 dataset:
-  # Score-Logging-Pfad (Score + 68%-Coverage + MSE) im Trainer.
-  loss: score_inference
   # Jeder Member sagt die 2 Parameter (Om, S8) voraus; der Ensemble-Head
   # erzeugt daraus die 4 Werte (mu, log_sigma).
   output_dim: 2

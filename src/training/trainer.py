@@ -12,13 +12,26 @@ from src import get_device
 
 from src.training.metrics import (
     eval_metric_sums,
-    score_inference_loss,
+    score_loss_fn,
 )
 from src.training.plots import (
     collect_predictions,
     compute_bias_metrics,
     semantic_error_figures,
 )
+from src.training.utils import (
+    flatten_dict,
+    generate_run_name,
+    get_dataset_name,
+    get_model_name,
+    get_shape,
+)
+
+
+# Versuche that train the 4-output (mu, log_sigma) head against score_loss_fn
+# and get the score/coverage/mse logging path; every other objective (mse)
+# gets the plain-MSE regression path.
+_SCORE_OBJECTIVES = frozenset({"score", "ensemble"})
 
 
 class Trainer:
@@ -30,14 +43,14 @@ class Trainer:
         if "cuda" in str(self.device):
             torch.backends.cudnn.benchmark = True
 
-    def _create_loss_fn(self, loss_name: str | None = None):
-        if loss_name == "score_inference":
+    def _create_loss_fn(self, objective: str):
+        if objective in _SCORE_OBJECTIVES:
             # FAIR-Universe weak-lensing: minimise the negative of the
             # PDF leaderboard score with λ=1e3.  Labels must be
             # standardised by the dataset so σ lives at a natural O(1)
             # scale.  No gradient clipping / log σ clamping anymore — use a
             # small LR if the λ·MSE term destabilises training.
-            return score_inference_loss
+            return score_loss_fn
         return lambda pred, target: torch.mean((pred - target) ** 2)
 
     @staticmethod
@@ -65,11 +78,11 @@ class Trainer:
         # optimizer factory: call with model.parameters() to build the torch optimizer
         optimizer_factory = instantiate(cfg.optimizer)
 
-        # create loss function — datasets can opt into a custom loss by
-        # setting ``loss:`` in their YAML (e.g. weak_lensing -> score_inference).
-        loss_name = cfg.dataset.get("loss", None)
-        loss_fn = self._create_loss_fn(loss_name=loss_name)
-        is_score_inference = loss_name == "score_inference"
+        # objective (configs/objective/<name>.yaml) picks both the loss
+        # function and the metrics-logging path directly.
+        objective = cfg.objective
+        loss_fn = self._create_loss_fn(objective)
+        uses_score_metrics = objective in _SCORE_OBJECTIVES
 
         # setup MLflow
         mlflow.set_tracking_uri(cfg.get("mlflow_tracking_uri", "mlruns"))
@@ -78,14 +91,14 @@ class Trainer:
         mlflow.set_system_metrics_sampling_interval(1)
         mlflow.set_system_metrics_samples_before_logging(1)
 
-        with mlflow.start_run(run_name=_generate_run_name(cfg)):
+        with mlflow.start_run(run_name=generate_run_name()):
             # log config parameters
-            flat_cfg = _flatten_dict(OmegaConf.to_container(cfg, resolve=True))
+            flat_cfg = flatten_dict(OmegaConf.to_container(cfg, resolve=True))
             mlflow.log_params(flat_cfg)
             mlflow.log_param("parameter_count", model.parameter_count())
-            mlflow.log_param("dataset", _get_dataset_name(cfg))
-            mlflow.log_param("model", _get_model_name(cfg))
-            mlflow.log_param("shape", _get_shape(cfg))
+            mlflow.log_param("dataset", get_dataset_name(cfg))
+            mlflow.log_param("model", get_model_name(cfg))
+            mlflow.log_param("shape", get_shape(cfg))
 
             # train
             t_start = time.time()
@@ -106,7 +119,7 @@ class Trainer:
                 es_restore_best=cfg.training.get("es_restore_best", True),
             )
 
-            if is_score_inference:
+            if uses_score_metrics:
                 label_stats = dataset.get("label_stats")
                 if label_stats is not None:
                     label_std_t = torch.as_tensor(label_stats[1], dtype=torch.float32)
@@ -131,7 +144,7 @@ class Trainer:
                 return float(torch.var(obj, unbiased=False))
 
             # log metrics per step
-            if is_score_inference:
+            if uses_score_metrics:
                 # ``train_loss`` / ``test_loss`` are the PDF score-loss
                 # (negative leaderboard score, λ=1e3) — i.e. the exact
                 # quantity submitted to Codabench.  Labels are
@@ -262,81 +275,3 @@ class Trainer:
         for name, fig in semantic_error_figures(y_true, y_pred, target_names).items():
             mlflow.log_figure(fig, f"semantic_checks/{name}.png")
             plt.close(fig)
-
-
-_ADJECTIVES = [
-    "swift",
-    "bright",
-    "calm",
-    "bold",
-    "keen",
-    "warm",
-    "cool",
-    "fair",
-    "wild",
-    "deep",
-    "glad",
-    "pure",
-    "vast",
-    "free",
-    "wise",
-    "rare",
-]
-_NOUNS = [
-    "fox",
-    "owl",
-    "elk",
-    "jay",
-    "ram",
-    "bee",
-    "ant",
-    "yak",
-    "emu",
-    "cod",
-    "hen",
-    "ape",
-    "bat",
-    "cat",
-    "dog",
-    "hawk",
-]
-
-_sysrand = random.SystemRandom()
-
-
-def _generate_run_name(cfg):
-    adjective = _sysrand.choice(_ADJECTIVES)
-    noun = _sysrand.choice(_NOUNS)
-    number = _sysrand.randint(100, 999)
-    return f"{adjective}-{noun}-{number}"
-
-
-def _get_model_name(cfg):
-    model_class = cfg.model.get("_target_", "unknown")
-    return model_class.rsplit(".", 1)[-1].replace("Model", "")
-
-
-def _get_dataset_name(cfg):
-    dataset_class = cfg.dataset.get("_target_", "unknown")
-    base_name = dataset_class.rsplit(".", 1)[-1].replace("Dataset", "")
-    if base_name == "Feynman":
-        return f"Feynman_{cfg.dataset.get('name', 'unknown')}"
-    return base_name
-
-
-def _get_shape(cfg):
-    model_cfg = OmegaConf.to_container(cfg.model, resolve=True)
-    return str(model_cfg.get("width") or model_cfg.get("layers_hidden", "unknown"))
-
-
-def _flatten_dict(d, parent_key="", sep="."):
-    items = []
-    for k, v in d.items():
-        new_key = f"{parent_key}{sep}{k}" if parent_key else k
-        if isinstance(v, dict):
-            items.extend(_flatten_dict(v, new_key, sep).items())
-        elif isinstance(v, list):
-            items.append((new_key, str(v)))
-        else:
-            items.append((new_key, v))
-    return dict(items)

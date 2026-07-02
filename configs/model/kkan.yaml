@@ -1,6 +1,6 @@
 _target_: src.models.kkan_model.KKANModel
 
-num_classes: ${dataset.output_dim}
+output_dim: ${dataset.output_dim}
 # Conv-KAN front-end resize target: /4 of the native 1424x176 map (was /8 =
 # 178x22 via dataset.img_size_h/w). More small-scale signal at ~4x GPU memory
 # (still well within budget; the /8 run used only ~11%). kat is unaffected — it
