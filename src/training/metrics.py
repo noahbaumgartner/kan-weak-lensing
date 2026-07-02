@@ -4,8 +4,6 @@ Output convention (B, 4): pred[:, :2] = μ, pred[:, 2:] = log σ.
 Labels are pre-standardised by the dataset.
 """
 
-from __future__ import annotations
-
 from typing import Optional
 
 import torch

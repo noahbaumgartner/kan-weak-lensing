@@ -14,8 +14,6 @@ Available methods (set via ``dataset.reduction``):
   pooling, leaving one feature per output channel. (Dozenten-Vorschlag 1.)
 * ``none``           — flatten the full image (or pass tabular input through).
 """
-from __future__ import annotations
-
 import torch
 import torch.nn as nn
 

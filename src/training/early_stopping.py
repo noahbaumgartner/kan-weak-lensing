@@ -19,8 +19,6 @@ truncated epoch is the last min_delta-qualified best, so the kept model, the
 logged finals and the returned objective all agree.
 """
 
-from __future__ import annotations
-
 import math
 
 

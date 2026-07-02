@@ -4,13 +4,6 @@ from src.modules.reduction import ReductionWrapper
 
 
 class EfficientKANModel(BaseKANModel):
-    """B-spline KAN (Blealtan/efficient-kan) with the shared image reduction.
-
-    Closest of the MLP-style models to the original KAN paper: a real B-spline
-    basis (``grid_size`` knots, ``spline_order`` k) plus an L1/entropy
-    regularisation on the spline weights (see ``regularization_loss``).
-    """
-
     def __init__(
         self,
         layers_hidden,
@@ -31,8 +24,6 @@ class EfficientKANModel(BaseKANModel):
         self.layers_hidden = layers_hidden
         self.grid_size = grid_size
         self.k = k
-        # Image -> vector reduction applied to 2D inputs (e.g. weak_lensing)
-        # before flattening. Defaults to a no-op passthrough for tabular/1D.
         self.reduction = dict(
             method=reduction,
             in_chans=in_chans,

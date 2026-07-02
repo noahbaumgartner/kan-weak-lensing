@@ -16,8 +16,8 @@ from src.training.metrics import (
 )
 from src.training.plots import (
     collect_predictions,
-    compute_bias_metrics,
-    semantic_error_figures,
+    plot_histogram_pred_vs_groundtruth,
+    plot_predicted_vs_groundtruth,
 )
 from src.training.utils import (
     flatten_dict,
@@ -26,7 +26,6 @@ from src.training.utils import (
     get_model_name,
     get_shape,
 )
-
 
 # Versuche that train the 4-output (mu, log_sigma) head against score_loss_fn
 # and get the score/coverage/mse logging path; every other objective (mse)
@@ -112,7 +111,6 @@ class Trainer:
                 lamb=cfg.training.get("lamb", 0.0),
                 num_workers=cfg.training.get("num_workers", 0),
                 prefetch_factor=cfg.training.get("prefetch_factor", 4),
-                grad_clip=cfg.training.get("grad_clip", None),
                 early_stopping=cfg.training.get("early_stopping", False),
                 es_patience=cfg.training.get("es_patience", 10),
                 es_min_delta=cfg.training.get("es_min_delta", 0.0),
@@ -133,16 +131,6 @@ class Trainer:
 
             train_time = time.time() - t_start
 
-            # R² needs the label variance. Datasets may expose labels
-            # as tensors (legacy), numpy arrays (weak_lensing), or omit
-            # them entirely (test-only set).
-            def _label_var(obj):
-                if obj is None:
-                    return float("nan")
-                if not isinstance(obj, torch.Tensor):
-                    obj = torch.as_tensor(obj)
-                return float(torch.var(obj, unbiased=False))
-
             # log metrics per step
             if uses_score_metrics:
                 # ``train_loss`` / ``test_loss`` are the PDF score-loss
@@ -152,9 +140,7 @@ class Trainer:
                 # multiply MSE component-wise by std² to recover original
                 # units at submission time.
                 n_steps = len(results["train_loss"])
-                test_var = _label_var(
-                    dataset.get("val_label", dataset.get("test_label"))
-                )
+                test_var = float(np.var(dataset.get("val_label")))
                 # ``test_score`` is the Codabench leaderboard score — computed
                 # in original Ω_m / S_8 units when labels were standardised,
                 # otherwise identical to ``-score_loss``.
@@ -191,18 +177,9 @@ class Trainer:
                 mlflow.log_metric("final_test_mse", final_test_mse)
                 mlflow.log_metric("final_test_rmse", final_test_mse**0.5)
                 mlflow.log_metric("final_test_coverage", float(final["coverage"]))
+
                 if test_var and test_var > 0:
                     mlflow.log_metric("final_test_r2", 1.0 - final_test_mse / test_var)
-
-                print(
-                    f"\nFinal Test Score:        {final_test_score:.4f}  (Codabench scale)"
-                )
-                print(f"Final Test MSE:          {final_test_mse:.6f}")
-                print(
-                    f"Final Coverage:          {float(final['coverage']):.4f}  (target ~0.68)"
-                )
-
-                self._log_semantic_error_plots(model, dataset)
             else:
                 for step_i, (tl, vl) in enumerate(
                     zip(results["train_loss"], results["test_loss"])
@@ -226,11 +203,8 @@ class Trainer:
                 mlflow.log_metric("final_train_rmse", final_train_rmse)
                 mlflow.log_metric("final_test_rmse", final_test_rmse)
 
-                # "val_label" takes precedence over "test_label" when
-                # both are present.
-                train_var = _label_var(dataset.get("train_label"))
-                test_label = dataset.get("val_label", dataset.get("test_label"))
-                test_var = _label_var(test_label)
+                train_var = float(np.var(dataset.get("train_label")))
+                test_var = float(np.var(dataset.get("val_label")))
                 final_train_r2 = (
                     1.0 - final_train_mse / train_var
                     if train_var and train_var > 0
@@ -244,34 +218,35 @@ class Trainer:
                 mlflow.log_metric("final_train_r2", final_train_r2)
                 mlflow.log_metric("final_test_r2", final_test_r2)
 
-                print(f"\nFinal Train MSE:  {final_train_mse:.6f}")
-                print(f"Final Test MSE:   {final_test_mse:.6f}")
-                print(f"Final Train RMSE: {final_train_rmse:.6f}")
-                print(f"Final Test RMSE:  {final_test_rmse:.6f}")
-                print(f"Final Train R²:   {final_train_r2:.6f}")
-                print(f"Final Test R²:    {final_test_r2:.6f}")
+            # semantic error diagnostics
+            val_input = dataset.get("val_input")
+            val_label = dataset.get("val_label")
+            label_stats = dataset.get("label_stats")
+            if (
+                val_input is not None
+                and val_label is not None
+                and label_stats is not None
+            ):
+                y_true, y_pred = collect_predictions(
+                    model, val_input, val_label, self.device
+                )
+                label_mean, label_std = label_stats
+                y_true = y_true * label_std + label_mean
+                y_pred = y_pred * label_std + label_mean
+
+                target_names = list(cfg.dataset.get("target_names", ["Omega_m", "S8"]))
+                figs = {
+                    "histogram_pred_vs_groundtruth": plot_histogram_pred_vs_groundtruth(
+                        y_true, y_pred, target_names
+                    ),
+                    "predicted_vs_groundtruth": plot_predicted_vs_groundtruth(
+                        y_true, y_pred, target_names
+                    ),
+                }
+                for name, fig in figs.items():
+                    mlflow.log_figure(fig, f"semantic_checks/{name}.png")
+                    plt.close(fig)
 
             mlflow.log_metric("training_time_sec", train_time)
 
         return results
-
-    def _log_semantic_error_plots(self, model, dataset):
-        val_input = dataset.get("val_input")
-        val_label = dataset.get("val_label")
-        label_stats = dataset.get("label_stats")
-        if val_input is None or val_label is None or label_stats is None:
-            return
-
-        target_names = list(self.cfg.dataset.get("target_names", ["Omega_m", "S8"]))
-        y_true, y_pred = collect_predictions(model, val_input, val_label, self.device)
-
-        label_mean, label_std = label_stats
-        y_true = y_true * label_std + label_mean
-        y_pred = y_pred * label_std + label_mean
-
-        for key, value in compute_bias_metrics(y_true, y_pred, target_names).items():
-            mlflow.log_metric(f"final_test_{key}", value)
-
-        for name, fig in semantic_error_figures(y_true, y_pred, target_names).items():
-            mlflow.log_figure(fig, f"semantic_checks/{name}.png")
-            plt.close(fig)

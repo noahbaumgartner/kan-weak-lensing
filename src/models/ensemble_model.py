@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 import copy
 
 import torch
@@ -141,7 +139,7 @@ class EnsembleModel(BaseKANModel):
         if isinstance(vi, Dataset):
             val_ds = vi
         else:
-            vl = dataset.get("val_label", dataset.get("test_label"))
+            vl = dataset.get("val_label")
             val_ds = TensorDataset(vi, vl)
 
         n_train = len(train_ds)

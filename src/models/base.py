@@ -1,4 +1,3 @@
-from __future__ import annotations
 from abc import ABC, abstractmethod
 import torch
 from torch.utils.data import DataLoader, Dataset, TensorDataset
@@ -37,7 +36,6 @@ class BaseKANModel(ABC):
         lamb,
         epoch_callback=None,
         extra_eval_metrics_fn=None,
-        grad_clip=None,
         early_stopping=False,
         es_patience=10,
         es_min_delta=0.0,
@@ -65,7 +63,7 @@ class BaseKANModel(ABC):
         if isinstance(vi, Dataset):
             val_ds = vi
         else:
-            vl = dataset.get("val_label", dataset.get("test_label"))
+            vl = dataset.get("val_label")
             val_ds = TensorDataset(vi, vl)
 
         n_train = len(train_ds)
@@ -81,10 +79,6 @@ class BaseKANModel(ABC):
         val_loader = DataLoader(val_ds, batch_size=bs, shuffle=False, **loader_kwargs)
 
         opt = optimizer_factory(self.get_model().parameters())
-        # Gradient clipping (max L2 norm). Off by default; datasets with a
-        # large-scale loss (e.g. weak_lensing's λ=1e3 score loss) set
-        # ``training.grad_clip`` to keep updates from diverging to NaN.
-        clip = float(grad_clip) if grad_clip else None
 
         results = {"train_loss": [], "test_loss": [], "reg": []}
         # Extra eval metrics get one list per key, populated on the val
@@ -113,10 +107,6 @@ class BaseKANModel(ABC):
                 reg = self.regularization_loss()
                 loss = data_loss + lamb * reg if reg > 0 else data_loss
                 loss.backward()
-                if clip is not None:
-                    torch.nn.utils.clip_grad_norm_(
-                        self.get_model().parameters(), clip
-                    )
                 opt.step()
                 data_loss = data_loss.detach()
 
