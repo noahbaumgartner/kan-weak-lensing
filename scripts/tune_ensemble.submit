@@ -15,7 +15,7 @@
 # Ensemble-Wrapper (Member-Default: fastkan). Member tauschen via z.B.
 #   sbatch --export=ALL,EXPERIMENT=<name>,MEMBER=wavkan scripts/tune_ensemble.submit
 export MODEL=ensemble
-export SWEEP=image/tune_ensemble
+export SWEEP="${SWEEP:-image/tune_ensemble${SWEEP_SUFFIX:-}}"
 export OBJECTIVE=ensemble
 export DATASETS="${DATASETS:-weak_lensing}"
 # Optional: andere Member-Architektur in den Sweep geben.

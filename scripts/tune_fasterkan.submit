@@ -12,7 +12,7 @@
 #SBATCH --export=ALL
 
 export MODEL=fasterkan
-export SWEEP=image/tune_fasterkan
+export SWEEP="${SWEEP:-image/tune_fasterkan${SWEEP_SUFFIX:-}}"
 export DATASETS="${DATASETS:-weak_lensing}"
 source /cluster/home/baumgnoa/kan-weak-lensing/scripts/_tune_common.sh
 

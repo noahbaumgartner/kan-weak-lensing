@@ -5,11 +5,18 @@ set -euo pipefail
 : "${MODEL:?MODEL must be set by the caller (e.g. MODEL=fastkan)}"
 : "${EXPERIMENT:?EXPERIMENT must be set by the caller (MLflow experiment name)}"
 
-# Optional overrides:
-#   SWEEP     — Hydra sweep name including subgroup (default: image/tune_${MODEL})
-#   DATASETS  — space-separated list of dataset names
-#   OBJECTIVE — Versuch / training objective (e.g. score | mse). If set, passed
-#               as objective=${OBJECTIVE}; otherwise the config.yaml default is used.
+# Optional overrides (set by the caller / forwarded via sbatch --export=ALL):
+#   SWEEP        — Hydra sweep name including subgroup, overrides the
+#                  per-model default entirely (default: image/tune_${MODEL}).
+#   SWEEP_SUFFIX — appended to the per-model default instead, e.g. "_arch" or
+#                  "_reduction"/"_model" to target the staged-sweep variants
+#                  (see README "Gestaffeltes Sweeping") without having to
+#                  spell out SWEEP per model — handy with submit_all.sh where
+#                  one SWEEP value can't fit every model's sweep filename.
+#   DATASETS     — space-separated list of dataset names
+#   OBJECTIVE    — Versuch / training objective (e.g. score | mse). If set,
+#                  passed as objective=${OBJECTIVE}; otherwise the
+#                  config.yaml default is used.
 # Image->vector reduction (avgpool | conv) is swept per trial by the Optuna
 # sweeper (dataset.reduction in configs/sweep/image/_reduction_sweep.yaml) —
 # not fixed per job, so it's not an override here.

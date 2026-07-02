@@ -6,11 +6,11 @@ defaults:
   - override /model: fasterkan
 
 training:
-  epochs: 50   # max budget; early stopping (configs/training/default.yaml) ends trials sooner
+  epochs: 20   # max budget; early stopping (configs/training/default.yaml) ends trials sooner
 
 hydra:
   sweeper:
-    n_trials: 50
+    n_trials: 30
     params:
       model.num_grids: range(4, 33)
       model.exponent: range(2, 5)

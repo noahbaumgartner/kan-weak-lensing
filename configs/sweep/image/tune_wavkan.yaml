@@ -6,10 +6,10 @@ defaults:
   - override /model: wavkan
 
 training:
-  epochs: 50   # max budget; early stopping (configs/training/default.yaml) ends trials sooner
+  epochs: 20   # max budget; early stopping (configs/training/default.yaml) ends trials sooner
 
 hydra:
   sweeper:
-    n_trials: 50
+    n_trials: 30
     params:
       model.wavelet_type: choice(mexican_hat, morlet, dog, meyer, shannon)

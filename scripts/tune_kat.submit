@@ -19,7 +19,7 @@
 # log_sigma) for objective=score. Runs end-to-end on weak_lensing.
 #   Submit:  MODELS="kat" OBJECTIVE=mse scripts/submit_all.sh <experiment>
 export MODEL=kat
-export SWEEP=image/tune_kat
+export SWEEP="${SWEEP:-image/tune_kat${SWEEP_SUFFIX:-}}"
 export DATASETS="${DATASETS:-weak_lensing}"
 
 source /cluster/home/baumgnoa/kan-weak-lensing/scripts/_tune_common.sh

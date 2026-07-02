@@ -9,6 +9,9 @@ if [[ $# -ne 1 ]]; then
   echo "  Env overrides (forwarded to the jobs via --export=ALL):" >&2
   echo "    MODELS=\"fastkan wavkan\"  models to submit (default: fastkan fasterkan efficientkan wavkan)" >&2
   echo "    OBJECTIVE=mse|score      training objective (default: config.yaml = score)" >&2
+  echo "    SWEEP_SUFFIX=_arch       target the staged-sweep variant for every submitted" >&2
+  echo "                             model (_arch = Stage 1, _reduction/_model = Stage 2," >&2
+  echo "                             see README \"Gestaffeltes Sweeping\")" >&2
   echo "" >&2
   echo "  Image->vector reduction (avgpool|conv) is swept per trial by Optuna for" >&2
   echo "  MLP models, not fixed per job. kkan/kat are excluded by default (not yet" >&2
