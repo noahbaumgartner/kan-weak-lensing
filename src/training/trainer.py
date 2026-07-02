@@ -6,11 +6,18 @@ import torch
 import mlflow
 from hydra.utils import instantiate
 from omegaconf import OmegaConf
+import matplotlib.pyplot as plt
 
 from src import get_device
+
 from src.training.metrics import (
     eval_metric_sums,
     score_inference_loss,
+)
+from src.training.plots import (
+    collect_predictions,
+    compute_bias_metrics,
+    semantic_error_figures,
 )
 
 
@@ -23,9 +30,7 @@ class Trainer:
         if "cuda" in str(self.device):
             torch.backends.cudnn.benchmark = True
 
-    def _create_loss_fn(self, task_type, loss_name: str | None = None):
-        if task_type == "classification":
-            return torch.nn.CrossEntropyLoss()
+    def _create_loss_fn(self, loss_name: str | None = None):
         if loss_name == "score_inference":
             # FAIR-Universe weak-lensing: minimise the negative of the
             # PDF leaderboard score with λ=1e3.  Labels must be
@@ -45,7 +50,6 @@ class Trainer:
 
     def train(self):
         cfg = self.cfg
-        task_type = cfg.dataset.get("task_type", "regression")
 
         # global seed
         self._seed_everything(cfg.get("seed", 42))
@@ -64,7 +68,7 @@ class Trainer:
         # create loss function — datasets can opt into a custom loss by
         # setting ``loss:`` in their YAML (e.g. weak_lensing -> score_inference).
         loss_name = cfg.dataset.get("loss", None)
-        loss_fn = self._create_loss_fn(task_type, loss_name=loss_name)
+        loss_fn = self._create_loss_fn(loss_name=loss_name)
         is_score_inference = loss_name == "score_inference"
 
         # setup MLflow
@@ -93,7 +97,6 @@ class Trainer:
                 loss_fn=loss_fn,
                 batch_size=cfg.training.get("batch_size", -1),
                 lamb=cfg.training.get("lamb", 0.0),
-                task_type=task_type,
                 num_workers=cfg.training.get("num_workers", 0),
                 prefetch_factor=cfg.training.get("prefetch_factor", 4),
                 grad_clip=cfg.training.get("grad_clip", None),
@@ -107,8 +110,8 @@ class Trainer:
                 label_stats = dataset.get("label_stats")
                 if label_stats is not None:
                     label_std_t = torch.as_tensor(label_stats[1], dtype=torch.float32)
-                    fit_kwargs["extra_eval_metrics_fn"] = (
-                        lambda p, t: eval_metric_sums(p, t, label_std=label_std_t)
+                    fit_kwargs["extra_eval_metrics_fn"] = lambda p, t: eval_metric_sums(
+                        p, t, label_std=label_std_t
                     )
                 else:
                     fit_kwargs["extra_eval_metrics_fn"] = eval_metric_sums
@@ -128,30 +131,7 @@ class Trainer:
                 return float(torch.var(obj, unbiased=False))
 
             # log metrics per step
-            if task_type == "classification":
-                for step_i, (tl, vl, ta, va) in enumerate(
-                    zip(
-                        results["train_loss"],
-                        results["test_loss"],
-                        results["train_acc"],
-                        results["test_acc"],
-                    )
-                ):
-                    mlflow.log_metrics(
-                        {
-                            "train_loss": float(tl),
-                            "test_loss": float(vl),
-                            "train_acc": float(ta),
-                            "test_acc": float(va),
-                        },
-                        step=step_i,
-                    )
-
-                mlflow.log_metric("final_train_loss", float(results["train_loss"][-1]))
-                mlflow.log_metric("final_test_loss", float(results["test_loss"][-1]))
-                mlflow.log_metric("final_train_acc", float(results["train_acc"][-1]))
-                mlflow.log_metric("final_test_acc", float(results["test_acc"][-1]))
-            elif is_score_inference:
+            if is_score_inference:
                 # ``train_loss`` / ``test_loss`` are the PDF score-loss
                 # (negative leaderboard score, λ=1e3) — i.e. the exact
                 # quantity submitted to Codabench.  Labels are
@@ -165,14 +145,18 @@ class Trainer:
                 # ``test_score`` is the Codabench leaderboard score — computed
                 # in original Ω_m / S_8 units when labels were standardised,
                 # otherwise identical to ``-score_loss``.
-                score_key = "score_loss_original" if "score_loss_original" in results else "score_loss"
+                score_key = (
+                    "score_loss_original"
+                    if "score_loss_original" in results
+                    else "score_loss"
+                )
                 for step_i in range(n_steps):
                     tl = float(results["train_loss"][step_i])
                     vl = float(results["test_loss"][step_i])
                     test_mse = float(results["mse"][step_i])
                     metrics = {
-                        "train_loss": tl,            # z-space PDF score-loss (training objective)
-                        "test_loss": vl,             # z-space PDF score-loss on val
+                        "train_loss": tl,  # z-space PDF score-loss (training objective)
+                        "test_loss": vl,  # z-space PDF score-loss on val
                         "test_score": -float(results[score_key][step_i]),  # Codabench
                         "test_mse": test_mse,
                         "test_rmse": test_mse**0.5,
@@ -184,9 +168,7 @@ class Trainer:
 
                 # Final summary metrics (last epoch).
                 final = {
-                    k: v[-1]
-                    for k, v in results.items()
-                    if isinstance(v, list) and v
+                    k: v[-1] for k, v in results.items() if isinstance(v, list) and v
                 }
                 final_test_mse = float(final["mse"])
                 final_test_score = -float(final[score_key])
@@ -197,13 +179,17 @@ class Trainer:
                 mlflow.log_metric("final_test_rmse", final_test_mse**0.5)
                 mlflow.log_metric("final_test_coverage", float(final["coverage"]))
                 if test_var and test_var > 0:
-                    mlflow.log_metric(
-                        "final_test_r2", 1.0 - final_test_mse / test_var
-                    )
+                    mlflow.log_metric("final_test_r2", 1.0 - final_test_mse / test_var)
 
-                print(f"\nFinal Test Score:        {final_test_score:.4f}  (Codabench scale)")
+                print(
+                    f"\nFinal Test Score:        {final_test_score:.4f}  (Codabench scale)"
+                )
                 print(f"Final Test MSE:          {final_test_mse:.6f}")
-                print(f"Final Coverage:          {float(final['coverage']):.4f}  (target ~0.68)")
+                print(
+                    f"Final Coverage:          {float(final['coverage']):.4f}  (target ~0.68)"
+                )
+
+                self._log_semantic_error_plots(model, dataset)
             else:
                 for step_i, (tl, vl) in enumerate(
                     zip(results["train_loss"], results["test_loss"])
@@ -255,6 +241,27 @@ class Trainer:
             mlflow.log_metric("training_time_sec", train_time)
 
         return results
+
+    def _log_semantic_error_plots(self, model, dataset):
+        val_input = dataset.get("val_input")
+        val_label = dataset.get("val_label")
+        label_stats = dataset.get("label_stats")
+        if val_input is None or val_label is None or label_stats is None:
+            return
+
+        target_names = list(self.cfg.dataset.get("target_names", ["Omega_m", "S8"]))
+        y_true, y_pred = collect_predictions(model, val_input, val_label, self.device)
+
+        label_mean, label_std = label_stats
+        y_true = y_true * label_std + label_mean
+        y_pred = y_pred * label_std + label_mean
+
+        for key, value in compute_bias_metrics(y_true, y_pred, target_names).items():
+            mlflow.log_metric(f"final_test_{key}", value)
+
+        for name, fig in semantic_error_figures(y_true, y_pred, target_names).items():
+            mlflow.log_figure(fig, f"semantic_checks/{name}.png")
+            plt.close(fig)
 
 
 _ADJECTIVES = [

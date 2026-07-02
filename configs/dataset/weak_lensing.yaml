@@ -18,8 +18,6 @@ standardize: true
 # Label z-scoring; overridden per objective (mse -> false, score -> true).
 standardize_labels: true
 
-task_type: regression
-
 # NOTE: loss / output_dim / num_targets define the *Versuch* (training
 # objective), not the data — they live in the objective config group
 # (configs/objective/{score,mse}.yaml) and are selected via objective=<name>.

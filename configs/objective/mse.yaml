@@ -16,8 +16,8 @@
 #     Varianz auf und R² wirkt künstlich gut (~0.95 statt ehrlich ~0.5).
 #
 # Keine Unsicherheitsschätzung. Der Trainer nutzt den Regressions-Pfad und loggt
-# genau einen final MSE / RMSE / R² (jede dataset.loss != "score_inference" und
-# != classification führt zu plain MSE).
+# genau einen final MSE / RMSE / R² (jede dataset.loss != "score_inference"
+# führt zu plain MSE).
 #
 # Hinweis: durch die Standardisierung ist die Loss-Skala ~100× größer als bei
 # rohen Labels — eine LR, die für rohe Labels getunt wurde, ggf. neu sweepen.

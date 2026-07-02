@@ -35,7 +35,6 @@ class BaseKANModel(ABC):
         loss_fn,
         batch_size,
         lamb,
-        task_type="regression",
         epoch_callback=None,
         extra_eval_metrics_fn=None,
         grad_clip=None,
@@ -89,9 +88,6 @@ class BaseKANModel(ABC):
         clip = float(grad_clip) if grad_clip else None
 
         results = {"train_loss": [], "test_loss": [], "reg": []}
-        if task_type == "classification":
-            results["train_acc"] = []
-            results["test_acc"] = []
         # Extra eval metrics get one list per key, populated on the val
         # set after each epoch.  Keys are discovered from the first batch.
         extra_metric_keys: list[str] = []
@@ -107,7 +103,6 @@ class BaseKANModel(ABC):
             # --- Train (accumulate metrics during the step to skip a redundant eval pass) ---
             self.get_model().train()
             train_loss_sum = torch.zeros((), device=device)
-            train_correct_sum = torch.zeros((), device=device)
             train_total = 0
 
             for x, y in train_loader:
@@ -120,7 +115,6 @@ class BaseKANModel(ABC):
                         opt.zero_grad(set_to_none=True)
                         pred = self.predict(x)
                         data_loss = loss_fn(pred, y)
-                        captured["pred"] = pred.detach()
                         captured["data_loss"] = data_loss.detach()
                         reg = self.regularization_loss()
                         loss = data_loss + lamb * reg if reg > 0 else data_loss
@@ -132,7 +126,6 @@ class BaseKANModel(ABC):
                         return loss
 
                     opt.step(closure)
-                    pred_detached = captured["pred"]
                     data_loss = captured["data_loss"]
                 else:
                     opt.zero_grad(set_to_none=True)
@@ -146,13 +139,10 @@ class BaseKANModel(ABC):
                             self.get_model().parameters(), clip
                         )
                     opt.step()
-                    pred_detached = pred.detach()
                     data_loss = data_loss.detach()
 
                 bs_x = x.shape[0]
                 train_loss_sum = train_loss_sum + data_loss * bs_x
-                if task_type == "classification":
-                    train_correct_sum = train_correct_sum + (pred_detached.argmax(dim=1) == y).sum()
                 train_total += bs_x
 
             train_mse = (train_loss_sum / train_total).item()
@@ -160,7 +150,6 @@ class BaseKANModel(ABC):
             # --- Validate (on val set only) ---
             self.get_model().eval()
             val_loss_sum = torch.zeros((), device=device)
-            val_correct_sum = torch.zeros((), device=device)
             val_total = 0
             extra_sums: dict[str, torch.Tensor] = {}
             with torch.no_grad():
@@ -170,8 +159,6 @@ class BaseKANModel(ABC):
                     pred = self.predict(x)
                     bs_x = x.shape[0]
                     val_loss_sum = val_loss_sum + loss_fn(pred, y) * bs_x
-                    if task_type == "classification":
-                        val_correct_sum = val_correct_sum + (pred.argmax(dim=1) == y).sum()
                     if extra_eval_metrics_fn is not None:
                         for k, v in extra_eval_metrics_fn(pred, y).items():
                             extra_sums[k] = extra_sums.get(k, torch.zeros((), device=device)) + v
@@ -188,10 +175,6 @@ class BaseKANModel(ABC):
             results["train_loss"].append(train_mse)
             results["test_loss"].append(val_mse)
             results["reg"].append(0.0)
-
-            if task_type == "classification":
-                results["train_acc"].append((train_correct_sum / train_total).item())
-                results["test_acc"].append((val_correct_sum / val_total).item())
 
             if epoch_callback is not None:
                 epoch_callback(epoch, self)

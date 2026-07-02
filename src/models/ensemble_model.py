@@ -112,7 +112,6 @@ class EnsembleModel(BaseKANModel):
         loss_fn,
         batch_size,
         lamb,
-        task_type="regression",
         epoch_callback=None,
         extra_eval_metrics_fn=None,
         **kwargs,
