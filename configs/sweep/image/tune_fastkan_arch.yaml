@@ -2,8 +2,10 @@
 #
 # Stage 1 of the staged fastkan sweep (siehe README "Gestaffeltes Sweeping"):
 # nur Architektur (model.n_hidden_layers/hidden_width_*) + Optimizer.
-# model.num_grids und dataset.reduction bleiben auf ihren Config-Defaults
-# (num_grids=8, reduction=avgpool) fixiert.
+# model.num_grids bleibt auf seinem Config-Default (num_grids=8) fixiert.
+# dataset.reduction wird auf conv gepinnt (statt Dataset-Default avgpool) —
+# conv erhaelt mehr kleinskalige/nicht-gausssche Information, die noetig ist,
+# um die Omega_m-sigma8-Degenerescence zu brechen.
 #
 # Nach diesem Lauf: besten Trial in MLflow ansehen, dessen Architektur- und
 # Optimizer-Werte als fixe Overrides in Stage 2
@@ -12,6 +14,9 @@ defaults:
   - /sweep/tune_base
   - /sweep/image/_optimizer_sweep
   - override /model: fastkan
+
+dataset:
+  reduction: conv
 
 training:
   epochs: 20   # max budget; early stopping (configs/training/default.yaml) ends trials sooner

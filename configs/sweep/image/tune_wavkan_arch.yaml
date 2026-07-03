@@ -2,8 +2,13 @@
 #
 # Stage 1 of the staged wavkan sweep (siehe README "Gestaffeltes Sweeping"):
 # nur Architektur (model.n_hidden_layers/hidden_width_*) + Optimizer.
-# model.wavelet_type und dataset.reduction bleiben auf ihren Config-Defaults
-# (mexican_hat, avgpool) fixiert.
+# model.wavelet_type bleibt auf seinem Config-Default (mexican_hat) fixiert.
+# dataset.reduction wird auf conv gepinnt (statt Dataset-Default avgpool) —
+# conv erhaelt mehr kleinskalige/nicht-gausssche Information, die noetig ist,
+# um die Omega_m-sigma8-Degenerescence zu brechen, und hat mit conv_channels=64
+# ein deutlich kleineres input_dim als avgpool (3916 bei pool_stride=8), also
+# eher weniger als mehr Speicherdruck fuer das ohnehin schon speicherhungrige
+# WavKAN.
 #
 # Nach diesem Lauf: besten Trial in MLflow ansehen, dessen Architektur- und
 # Optimizer-Werte als fixe Overrides in Stage 2
@@ -12,6 +17,9 @@ defaults:
   - /sweep/tune_base
   - /sweep/image/_optimizer_sweep
   - override /model: wavkan
+
+dataset:
+  reduction: conv
 
 training:
   epochs: 20   # max budget; early stopping (configs/training/default.yaml) ends trials sooner

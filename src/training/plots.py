@@ -1,7 +1,25 @@
+import warnings
+
 import numpy as np
 import torch
 from torch.utils.data import DataLoader, Dataset, TensorDataset
 import matplotlib.pyplot as plt
+
+
+def _drop_non_finite(true_col: np.ndarray, pred_col: np.ndarray, name: str):
+    """Filter rows where either column is NaN/Inf (e.g. a diverged trial).
+
+    Plain min/max/histogram over non-finite values raise or produce garbage
+    ranges, so this keeps plotting from crashing while surfacing the
+    divergence instead of silently hiding it.
+    """
+    mask = np.isfinite(true_col) & np.isfinite(pred_col)
+    if not mask.all():
+        warnings.warn(
+            f"{name}: dropping {(~mask).sum()}/{mask.size} non-finite "
+            "predictions from plot (model likely diverged)."
+        )
+    return true_col[mask], pred_col[mask]
 
 
 @torch.no_grad()
@@ -35,11 +53,12 @@ def plot_histogram_pred_vs_groundtruth(
     fig, axes = plt.subplots(1, n, figsize=(6 * n, 4.2))
     axes = np.atleast_1d(axes)
     for i, name in enumerate(target_names):
+        true_col, pred_col = _drop_non_finite(y_true[:, i], y_pred[:, i], name)
         axes[i].hist(
-            y_true[:, i], bins=40, alpha=0.6, label="Ground Truth", color="steelblue"
+            true_col, bins=40, alpha=0.6, label="Ground Truth", color="steelblue"
         )
         axes[i].hist(
-            y_pred[:, i], bins=40, alpha=0.6, label="Vorhersage", color="indianred"
+            pred_col, bins=40, alpha=0.6, label="Vorhersage", color="indianred"
         )
         axes[i].set(xlabel=name, ylabel="Anzahl", title=f"Verteilung {name}")
         axes[i].legend()
@@ -53,9 +72,10 @@ def plot_predicted_vs_groundtruth(y_true: np.ndarray, y_pred: np.ndarray, target
     fig, axes = plt.subplots(1, n, figsize=(5.5 * n, 5))
     axes = np.atleast_1d(axes)
     for i, name in enumerate(target_names):
-        lo = min(y_true[:, i].min(), y_pred[:, i].min())
-        hi = max(y_true[:, i].max(), y_pred[:, i].max())
-        axes[i].scatter(y_true[:, i], y_pred[:, i], s=10, alpha=0.5, color="steelblue")
+        true_col, pred_col = _drop_non_finite(y_true[:, i], y_pred[:, i], name)
+        lo = min(true_col.min(), pred_col.min())
+        hi = max(true_col.max(), pred_col.max())
+        axes[i].scatter(true_col, pred_col, s=10, alpha=0.5, color="steelblue")
         axes[i].plot([lo, hi], [lo, hi], "k--", linewidth=1, label="y = x (perfekt)")
         axes[i].set(
             xlabel=f"{name} (Ground Truth)",

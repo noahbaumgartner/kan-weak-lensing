@@ -133,9 +133,12 @@ gestaffeltes Paar:
 * **Stage 1** (`tune_<model>_arch.yaml`): sweept nur Architektur
   (`model.n_hidden_layers`/`hidden_width_*`, bzw. bei kkan/kat die
   Transformer-/Trainings-Kapazitätsknöpfe) + Optimizer (`lr`,
-  `weight_decay`). Reduction bleibt auf `avgpool` (Dataset-Default),
-  modellspezifische Params (`grid_size`, `num_grids`, `wavelet_type`, ...)
-  bleiben auf ihrem Config-Default fixiert.
+  `weight_decay`). Reduction wird auf `conv` gepinnt (statt Dataset-Default
+  `avgpool` — conv erhält mehr kleinskalige/nicht-gaußsche Information, die
+  nötig ist, um die Omega_m-sigma8-Degenerescence zu brechen; bei kkan/kat
+  entfällt das, da kein Reduction-Wrapper existiert), modellspezifische
+  Params (`grid_size`, `num_grids`, `wavelet_type`, ...) bleiben auf ihrem
+  Config-Default fixiert.
 * **Stage 2** (`tune_<model>_reduction.yaml`, bei kkan/kat
   `tune_<model>_model.yaml` da kein Reduction-Wrapper existiert): sweept
   modellspezifische Params + Reduction-Methode/-Knobs. Architektur und
