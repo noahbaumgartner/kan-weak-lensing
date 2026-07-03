@@ -61,3 +61,4 @@ n_hidden_min: 1
 n_hidden_max: 3
 hidden_width_min: 128
 hidden_width_max: 512
+hidden_width_step: 128
