@@ -12,21 +12,28 @@
 #
 # Reduction *method* (avgpool | conv | scattering) is swept (dataset.reduction
 # below) — each trial picks one method; the other methods' knobs are simply
-# no-ops for that trial. pool_stride 5-8, conv_channels<=128 and
+# no-ops for that trial. pool_stride 6-9, conv_channels<=128 and
 # scattering_J<=4 keep input_dim moderate (no full-resolution flatten -> no
 # CUDA OOM; WavKAN in particular is memory-heavy, so don't lower pool_stride
-# below 5). scattering (kymatio wavelet scattering, fixed/non-learnable
-# filters) is global-avg-pooled like conv, so input_dim only depends on
-# scattering_J/L/order, not image size — see src/modules/reduction.py.
-# scattering_L (angle count) is left at its config default (8) to keep the
-# search space small.
+# below 6 — avgpool's input_dim grows quadratically as stride shrinks, e.g.
+# stride=5 already gives input_dim=9940, ~20-80x larger than conv/scattering's
+# range and, combined with a large model.grid_size, bloats the first KAN
+# layer to ~200M+ params). scattering (kymatio wavelet scattering,
+# fixed/non-learnable filters) is global-avg-pooled like conv, so input_dim
+# only depends on scattering_J/L/order, not image size — see
+# src/modules/reduction.py. scattering_L (angle count) is left at its config
+# default (8) to keep the search space small.
+#
+# Note: hydra-optuna-sweeper's range(a, b) samples the INCLUSIVE interval
+# [a, b] (confirmed empirically against optuna.suggest_int) — unlike Python's
+# range(), which excludes b. All ranges here are written with that in mind.
 hydra:
   sweeper:
     params:
       dataset.reduction: choice(avgpool, conv, scattering)
-      dataset.pool_stride: range(5, 9)
+      dataset.pool_stride: range(6, 9)
       dataset.conv_channels: choice(16, 32, 64, 128)
       dataset.conv_layers: range(1, 4)
       dataset.conv_kernel: choice(3, 5, 7)
-      dataset.scattering_J: range(2, 5)
+      dataset.scattering_J: range(2, 4)
       dataset.scattering_order: choice(1, 2)
