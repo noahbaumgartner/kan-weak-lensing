@@ -1,0 +1,36 @@
+# @package _global_
+#
+# Stage 2 of the staged wavkan sweep (siehe README "Gestaffeltes Sweeping"),
+# objective=score. Architektur ist auf den Stage-1-Gewinner
+# (WL-Auswertung.xlsx, SCORE-Spalte) fest gepinnt: model.wavelet_type +
+# Reduction-Methode/-Knobs bleiben gesweept.
+#   sbatch --export=ALL,EXPERIMENT=...,SWEEP=image/tune_wavkan_reduction_score \
+#     scripts/tune_wavkan.submit
+defaults:
+  - /sweep/image/_reduction_sweep
+  - override /hydra/sweeper: optuna
+  - override /hydra/sweeper/sampler: tpe
+  - override /model: wavkan
+  - override /objective: score
+
+seed: 42
+
+model:
+  n_hidden_layers: 2
+  hidden_width_0: 256
+  hidden_width_1: 384
+
+training:
+  epochs: 20   # max budget; early stopping (configs/training/default.yaml) ends trials sooner
+
+hydra:
+  sweeper:
+    sampler:
+      seed: ${seed}
+      n_startup_trials: 10
+    direction: minimize
+
+    n_trials: 30
+    n_jobs: 1
+    params:
+      model.wavelet_type: choice(mexican_hat, morlet, dog, meyer, shannon)

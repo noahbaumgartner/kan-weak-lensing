@@ -1,0 +1,37 @@
+# @package _global_
+#
+# Stage 2 of the staged fastkan sweep (siehe README "Gestaffeltes Sweeping"),
+# objective=score. Architektur ist auf den Stage-1-Gewinner
+# (WL-Auswertung.xlsx, SCORE-Spalte) fest gepinnt: model.num_grids +
+# Reduction-Methode/-Knobs bleiben gesweept.
+#   sbatch --export=ALL,EXPERIMENT=...,SWEEP=image/tune_fastkan_reduction_score \
+#     scripts/tune_fastkan.submit
+defaults:
+  - /sweep/image/_reduction_sweep
+  - override /hydra/sweeper: optuna
+  - override /hydra/sweeper/sampler: tpe
+  - override /model: fastkan
+  - override /objective: score
+
+seed: 42
+
+model:
+  n_hidden_layers: 3
+  hidden_width_0: 256
+  hidden_width_1: 256
+  hidden_width_2: 128
+
+training:
+  epochs: 20   # max budget; early stopping (configs/training/default.yaml) ends trials sooner
+
+hydra:
+  sweeper:
+    sampler:
+      seed: ${seed}
+      n_startup_trials: 10
+    direction: minimize
+
+    n_trials: 30
+    n_jobs: 1
+    params:
+      model.num_grids: range(4, 51)
