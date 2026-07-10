@@ -25,7 +25,7 @@ uv run python main.py model=fastkan dataset=weak_lensing
 # anderes Modell / Hydra-Overrides
 uv run python main.py model=fasterkan dataset=weak_lensing training.epochs=5 model.num_grids=16
 
-# Reduction waehlen (Default avgpool)
+# Reduction waehlen (Default avgpool; auch: conv, scattering)
 uv run python main.py model=wavkan dataset=weak_lensing dataset.reduction=conv
 ```
 
@@ -101,14 +101,18 @@ Setup identisch zu `kan-lab`. Tracking-URI Default: `http://127.0.0.1:9299`
 
 Sweep-Konfigurationen liegen unter `configs/sweep/`. `tune_base.yaml` definiert
 den Optuna/TPE-Sweeper; die modell-spezifischen Sweeps erben davon. Die
-Reduction (`avgpool` | `conv`) ist Teil des Sweeps (`dataset.reduction` in
-`configs/sweep/image/_reduction_sweep.yaml` bzw. `tune_ensemble.yaml`) —
-jeder Trial wählt eine Methode; die Knöpfe der jeweils anderen Methode sind
-für diesen Trial ein No-op.
+Reduction (`avgpool` | `conv` | `scattering`) ist Teil des Sweeps
+(`dataset.reduction` in `configs/sweep/image/_reduction_sweep.yaml` bzw.
+`tune_ensemble.yaml`) — jeder Trial wählt eine Methode; die Knöpfe der jeweils
+anderen Methoden sind für diesen Trial ein No-op. `scattering` ist eine feste
+(nicht lernbare) Wavelet-Scattering-Transform ([kymatio](https://www.kymat.io/),
+`src/modules/reduction.py`), danach global-avg-gepoolt wie bei `conv` — Knöpfe:
+`scattering_J` (Skalen), `scattering_L` (Winkel, im Sweep auf dem Default 8
+fixiert) und `scattering_order` (1 oder 2).
 
 ```bash
 # Einzelnen Sweep lokal laufen lassen (Default-objective aus config.yaml = score);
-# sweept dataset.reduction (avgpool/conv) automatisch mit
+# sweept dataset.reduction (avgpool/conv/scattering) automatisch mit
 uv run python main.py --multirun +sweep=image/tune_fastkan dataset=weak_lensing
 
 # Sweep mit anderem Versuch
@@ -187,7 +191,7 @@ scripts/                    MLflow-Server + SLURM-Tuning-Jobs
 ## Hinweis zu kkan / kat
 
 `fastkan`, `fasterkan`, `efficientkan` und `wavkan` reduzieren die 1424×176-Maps
-(avgpool / conv) und laufen direkt auf Weak Lensing —
+(avgpool / conv / scattering) und laufen direkt auf Weak Lensing —
 fertige Sweeps: `configs/sweep/image/tune_{fastkan,fasterkan,efficientkan,wavkan}.yaml`.
 
 `kkan` (Conv-KAN) und `kat` (KAN-ViT) wurden in `kan-lab` auf **quadratischen

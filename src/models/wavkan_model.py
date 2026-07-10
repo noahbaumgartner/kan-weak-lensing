@@ -15,6 +15,9 @@ class WavKANModel(BaseKANModel):
         conv_stride_h=4,
         conv_stride_w=2,
         conv_kernel=3,
+        scattering_J=3,
+        scattering_L=8,
+        scattering_order=2,
         img_height=0,
         img_width=0,
         in_chans=1,
@@ -33,6 +36,9 @@ class WavKANModel(BaseKANModel):
             conv_stride_h=conv_stride_h,
             conv_stride_w=conv_stride_w,
             conv_kernel=conv_kernel,
+            scattering_J=scattering_J,
+            scattering_L=scattering_L,
+            scattering_order=scattering_order,
         )
 
     def build(self, device="cpu"):

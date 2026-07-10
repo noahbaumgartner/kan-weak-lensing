@@ -6,7 +6,7 @@ hidden_width_2: ${dataset.hidden_width_min}
 hidden_width_3: ${dataset.hidden_width_min}
 layers_hidden: ${make_width:${dataset.input_dim},${dataset.output_dim},${model.n_hidden_layers},${model.hidden_width_0},${model.hidden_width_1},${model.hidden_width_2},${model.hidden_width_3}}
 num_grids: 8
-# Image -> vector reduction (avgpool | conv | none)
+# Image -> vector reduction (avgpool | conv | scattering | none)
 # read from the dataset. Datasets that don't set these (tabular / 1D) default
 # to a no-op passthrough.
 reduction: ${oc.select:dataset.reduction,none}
@@ -16,6 +16,9 @@ conv_layers: ${oc.select:dataset.conv_layers,2}
 conv_stride_h: ${oc.select:dataset.conv_stride_h,4}
 conv_stride_w: ${oc.select:dataset.conv_stride_w,2}
 conv_kernel: ${oc.select:dataset.conv_kernel,3}
+scattering_J: ${oc.select:dataset.scattering_J,3}
+scattering_L: ${oc.select:dataset.scattering_L,8}
+scattering_order: ${oc.select:dataset.scattering_order,2}
 img_height: ${oc.select:dataset.img_height,0}
 img_width: ${oc.select:dataset.img_width,0}
 in_chans: ${oc.select:dataset.in_chans,1}

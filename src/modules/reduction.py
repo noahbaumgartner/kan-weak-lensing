@@ -12,10 +12,32 @@ Available methods (set via ``dataset.reduction``):
 * ``conv``           — a small learnable strided-conv stack with an asymmetric
   stride (larger along the bigger image dimension) followed by global average
   pooling, leaving one feature per output channel. (Dozenten-Vorschlag 1.)
+* ``scattering``      — fixed (non-learnable) wavelet scattering transform
+  (kymatio, https://www.kymat.io/), then global average pooling over the
+  spatial scattering-coefficient map, leaving one feature per
+  scale/angle/order channel. Translation-invariant, deformation-stable
+  texture features — no training needed for the reduction itself.
 * ``none``           — flatten the full image (or pass tabular input through).
 """
 import torch
 import torch.nn as nn
+
+# kymatio.torch eagerly imports the 3D (HarmonicScattering3D) frontend, which
+# pulls in scipy.special.sph_harm — removed in scipy>=1.15 (renamed
+# sph_harm_y) and unrelated to the 2D transform we use. Importing the 2D
+# frontend directly sidesteps that broken import chain.
+from kymatio.scattering2d.frontend.torch_frontend import ScatteringTorch2D as Scattering2D
+
+
+def _scattering_n_coeffs(J: int, L: int, order: int) -> int:
+    """Number of scattering channels kymatio produces for J scales, L angles,
+    up to ``order`` (1 or 2). Matches kymatio's own coefficient count: 1 (order
+    0, the lowpass) + L*J (order 1) + L^2 * J*(J-1)/2 (order 2, one path per
+    scale pair j1<j2 x angle pair)."""
+    n = 1 + L * J
+    if order >= 2:
+        n += L * L * J * (J - 1) // 2
+    return n
 
 
 def reduced_dim(
@@ -25,6 +47,9 @@ def reduced_dim(
     in_chans: int = 1,
     pool_stride: int = 1,
     conv_channels: int = 64,
+    scattering_J: int = 3,
+    scattering_L: int = 8,
+    scattering_order: int = 2,
 ) -> int:
     """Flat feature count produced by ``method`` on an ``(in_chans, h, w)`` image."""
     h, w, in_chans = int(h), int(w), int(in_chans)
@@ -34,6 +59,13 @@ def reduced_dim(
         # The conv stack ends in global average pooling, so the feature count is
         # just the number of output channels (independent of input H/W/stride).
         return int(conv_channels)
+    if method == "scattering":
+        # Global-avg-pooled over space (like conv), so independent of H/W too —
+        # just in_chans scattering channels per input channel.
+        n_coeffs = _scattering_n_coeffs(
+            int(scattering_J), int(scattering_L), int(scattering_order)
+        )
+        return in_chans * n_coeffs
     if method == "none":
         return in_chans * h * w
     raise ValueError(f"unknown reduction method: {method!r}")
@@ -59,6 +91,9 @@ class ReductionWrapper(nn.Module):
         conv_stride_h: int = 4,
         conv_stride_w: int = 2,
         conv_kernel: int = 3,
+        scattering_J: int = 3,
+        scattering_L: int = 8,
+        scattering_order: int = 2,
     ):
         super().__init__()
         self.method = method
@@ -66,6 +101,7 @@ class ReductionWrapper(nn.Module):
         self.flatten = nn.Flatten()
         self.pool = None
         self.conv = None
+        self.scattering = None
 
         if method == "avgpool":
             self.pool = (
@@ -85,6 +121,15 @@ class ReductionWrapper(nn.Module):
                 stride_w=int(conv_stride_w),
                 kernel=int(conv_kernel),
             )
+        elif method == "scattering":
+            # Fixed (non-learnable) filters, sized to the exact input shape —
+            # shape is baked in at construction, like the conv encoder's stride.
+            self.scattering = Scattering2D(
+                J=int(scattering_J),
+                shape=(int(img_height), int(img_width)),
+                L=int(scattering_L),
+                max_order=int(scattering_order),
+            )
         else:  # none -> passthrough
             self.pool = nn.Identity()
 
@@ -93,6 +138,11 @@ class ReductionWrapper(nn.Module):
             if self.method == "conv":
                 # (B, C, H, W) -> conv stack -> global-avg -> (B, conv_channels, 1, 1)
                 x = self.conv(x)
+            elif self.method == "scattering":
+                # (B, C, H, W) -> (B, C, n_coeffs, H', W') -> global-avg over
+                # space -> (B, C, n_coeffs), same "one feature per channel"
+                # shape as conv's global-avg-pooled output.
+                x = self.scattering(x).mean(dim=(-1, -2))
             else:
                 x = self.pool(x)
         return self.kan(self.flatten(x))
