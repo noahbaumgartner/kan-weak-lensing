@@ -14,8 +14,9 @@
 # Quick end-to-end check that the new `scattering` reduction (kymatio) works
 # on the cluster (kymatio import, CUDA forward/backward, real data) before
 # committing to a full sweep. A handful of short DIRECT runs (no --multirun /
-# no Optuna sweeper), 2 epochs each, own local MLflow tracking dir so it
-# doesn't depend on the shared mlflow_server job being up.
+# no Optuna sweeper), 2 epochs each, logged to the shared MLflow server (same
+# URL-file handoff as scripts/_tune_common.sh) — so the mlflow_server job
+# (scripts/mlflow_server.submit) must already be running.
 #
 # Submit: sbatch scripts/smoke_test_scattering.submit
 # Models to test: MODELS="efficientkan wavkan" sbatch scripts/smoke_test_scattering.submit
@@ -32,7 +33,20 @@ export UV_PYTHON_PREFERENCE=only-managed
 uv python install 3.12
 uv sync
 
-TRACKING_URI="file:///cluster/home/baumgnoa/kan-weak-lensing/mlflow/smoke_test"
+# Wait for the mlflow server job to publish its URL (same handoff as
+# scripts/_tune_common.sh).
+URL_FILE=/cluster/home/baumgnoa/kan-weak-lensing/mlflow/server_url.txt
+for i in $(seq 1 60); do
+  if [[ -s "${URL_FILE}" ]]; then break; fi
+  echo "Waiting for MLflow URL at ${URL_FILE} (${i}/60)..."
+  sleep 10
+done
+if [[ ! -s "${URL_FILE}" ]]; then
+  echo "MLflow URL file never appeared; is the mlflow_server job running?" >&2
+  exit 1
+fi
+TRACKING_URI=$(cat "${URL_FILE}")
+echo "Using MLFLOW_TRACKING_URI=${TRACKING_URI}"
 
 if [[ -n "${MODELS:-}" ]]; then
   read -r -a MODEL_LIST <<< "${MODELS}"
