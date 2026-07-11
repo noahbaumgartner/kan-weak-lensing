@@ -12,6 +12,15 @@ def _drop_non_finite(true_col: np.ndarray, pred_col: np.ndarray, name: str):
     Plain min/max/histogram over non-finite values raise or produce garbage
     ranges, so this keeps plotting from crashing while surfacing the
     divergence instead of silently hiding it.
+
+    Also upcasts to float64: a badly-diverged model can still emit finite but
+    huge (near float32-max, ~1e38) predictions, and np.histogram computes bin
+    edges in the input's own dtype — `max - min` for two such float32 values
+    overflows to inf and raises "Too many bins for data range", which
+    otherwise crashes the whole trial (and, since Hydra's Optuna sweeper
+    re-raises a failed trial's exception, the entire sweep — see main.py's
+    OutOfMemoryError guard for the same concern). float64 has enough range to
+    hold that difference.
     """
     mask = np.isfinite(true_col) & np.isfinite(pred_col)
     if not mask.all():
@@ -19,7 +28,7 @@ def _drop_non_finite(true_col: np.ndarray, pred_col: np.ndarray, name: str):
             f"{name}: dropping {(~mask).sum()}/{mask.size} non-finite "
             "predictions from plot (model likely diverged)."
         )
-    return true_col[mask], pred_col[mask]
+    return true_col[mask].astype(np.float64), pred_col[mask].astype(np.float64)
 
 
 @torch.no_grad()

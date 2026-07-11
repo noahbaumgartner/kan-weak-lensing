@@ -235,17 +235,30 @@ class Trainer:
                 y_pred = y_pred * label_std + label_mean
 
                 target_names = list(cfg.dataset.get("target_names", ["Omega_m", "S8"]))
-                figs = {
-                    "histogram_pred_vs_groundtruth": plot_histogram_pred_vs_groundtruth(
-                        y_true, y_pred, target_names
-                    ),
-                    "predicted_vs_groundtruth": plot_predicted_vs_groundtruth(
-                        y_true, y_pred, target_names
-                    ),
-                }
-                for name, fig in figs.items():
-                    mlflow.log_figure(fig, f"semantic_checks/{name}.png")
-                    plt.close(fig)
+                # Purely diagnostic: the metrics that matter to Optuna are already
+                # logged above, so a plotting failure (e.g. an extreme-valued
+                # diverged trial hitting some other matplotlib/numpy edge case)
+                # must not crash the trial — Hydra's Optuna sweeper re-raises a
+                # failed trial's exception, which would kill the entire sweep,
+                # not just this one (see main.py's OutOfMemoryError guard for the
+                # same concern).
+                try:
+                    figs = {
+                        "histogram_pred_vs_groundtruth": plot_histogram_pred_vs_groundtruth(
+                            y_true, y_pred, target_names
+                        ),
+                        "predicted_vs_groundtruth": plot_predicted_vs_groundtruth(
+                            y_true, y_pred, target_names
+                        ),
+                    }
+                    for name, fig in figs.items():
+                        mlflow.log_figure(fig, f"semantic_checks/{name}.png")
+                        plt.close(fig)
+                except Exception:
+                    import traceback
+
+                    traceback.print_exc()
+                    print("semantic-check plotting failed -> skipping, trial continues")
 
             mlflow.log_metric("training_time_sec", train_time)
 
