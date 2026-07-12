@@ -67,11 +67,11 @@ def plot_histogram_pred_vs_groundtruth(
             true_col, bins=40, alpha=0.6, label="Ground Truth", color="steelblue"
         )
         axes[i].hist(
-            pred_col, bins=40, alpha=0.6, label="Vorhersage", color="indianred"
+            pred_col, bins=40, alpha=0.6, label="Prediction", color="indianred"
         )
-        axes[i].set(xlabel=name, ylabel="Anzahl", title=f"Verteilung {name}")
+        axes[i].set(xlabel=name, ylabel="Count", title=f"Distribution {name}")
         axes[i].legend()
-    fig.suptitle("Testset-Histogramm: Ground Truth vs. Vorhersage")
+    fig.suptitle("Test Set Histogram: Ground Truth vs. Prediction")
     fig.tight_layout()
     return fig
 
@@ -85,10 +85,10 @@ def plot_predicted_vs_groundtruth(y_true: np.ndarray, y_pred: np.ndarray, target
         lo = min(true_col.min(), pred_col.min())
         hi = max(true_col.max(), pred_col.max())
         axes[i].scatter(true_col, pred_col, s=10, alpha=0.5, color="steelblue")
-        axes[i].plot([lo, hi], [lo, hi], "k--", linewidth=1, label="y = x (perfekt)")
+        axes[i].plot([lo, hi], [lo, hi], "k--", linewidth=1, label="y = x (perfect)")
         axes[i].set(
             xlabel=f"{name} (Ground Truth)",
-            ylabel=f"{name} (Vorhersage)",
+            ylabel=f"{name} (Prediction)",
             title=f"Predicted vs. Groundtruth: {name}",
         )
         axes[i].legend()
