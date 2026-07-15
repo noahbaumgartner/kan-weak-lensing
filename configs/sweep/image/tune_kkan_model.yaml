@@ -1,12 +1,24 @@
 # @package _global_
 #
 # Stage 2 of the staged kkan sweep (siehe README "Gestaffeltes Sweeping"):
-# nur model.grid_size (kein Reduction-Wrapper bei KKAN). Optimizer und
-# training.batch_size werden NICHT hier gesweept, sondern muessen als fixe
-# Overrides von Stage 1 (tune_kkan_arch.yaml) mitgegeben werden, z.B.:
+# model.grid_size + the conv-stem width (src/modules/convstem.py — see
+# configs/model/kkan.yaml). Optimizer und training.batch_size werden NICHT
+# hier gesweept, sondern muessen als fixe Overrides von Stage 1
+# (tune_kkan_arch.yaml) mitgegeben werden, z.B.:
 #   sbatch --export=ALL,EXPERIMENT=...,SWEEP=image/tune_kkan_model,\
 #     EXTRA_weak_lensing="training.batch_size=128 optimizer.lr=8e-4 \
 #     optimizer.weight_decay=1e-5" scripts/tune_kkan.submit
+#
+# model.stem_layers is deliberately NOT swept: ConvStem._layer_strides raises
+# a plain ValueError (uncaught outside CUDA OOM in main.py) unless the
+# native/target downscale factor (4, here) is an exact n_layers-th power of
+# an integer stride — only n_layers in {1, 2} are valid, so there's nothing
+# safe to sweep. model.stem_channels stays narrow (1-4): it's conv1's
+# in_channels, and KAN_Convolutional_Layer's cost scales with
+# in_channels x out_channels (one KANLinear per pair) — widening it multiplies
+# the expensive KAN-conv layer's cost, not the stem's (this is exactly what
+# caused the OOM the conv-stem test run originally hit). stem_hidden_channels
+# is cheap (ordinary Conv2d) and can range wider.
 defaults:
   - override /hydra/sweeper: optuna
   - override /hydra/sweeper/sampler: tpe
@@ -28,3 +40,5 @@ hydra:
     n_jobs: 1
     params:
       model.grid_size: range(3, 21)
+      model.stem_channels: choice(1, 2, 3, 4)
+      model.stem_hidden_channels: choice(4, 8, 16, 32)
