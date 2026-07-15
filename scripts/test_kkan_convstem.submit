@@ -19,6 +19,14 @@
 # configs/model/kkan.yaml). Hyperparameters below are the wl_mse_stage1 best
 # trial, reused as-is so this run isolates the architecture change.
 #
+# batch_size dropped from the wl_mse_stage1 value (128) to 16: confirmed via
+# scripts/debug_kkan_convstem.py that conv1 alone (KAN_Convolutional_Layer,
+# unaffected by the stem — same 5 kernels / same (356x44) input shape as
+# before) already needs ~26GB at batch=128 on this GPU (31.73GB total), i.e.
+# a pre-existing KKAN batch-scaling limit at this /4 resolution, not caused by
+# the conv stem (which itself measured <1GB). Separate issue, out of scope
+# here — this run is only meant to isolate/validate the stem architecture.
+#
 # Submit: sbatch scripts/test_kkan_convstem.submit
 # Override the MLflow experiment name: sbatch --export=ALL,EXPERIMENT=<name> scripts/test_kkan_convstem.submit
 
@@ -57,7 +65,7 @@ HYDRA_FULL_ERROR=1 uv run main.py \
   objective=mse \
   seed=42 \
   training.epochs=20 \
-  training.batch_size=128 \
+  training.batch_size=16 \
   training.early_stopping=true \
   training.es_patience=12 \
   training.es_min_delta=0.001 \
