@@ -26,8 +26,13 @@
 # a pre-existing KKAN batch-scaling limit at this /4 resolution, not caused by
 # the conv stem (which itself measured <1GB). Separate issue, out of scope
 # here — this run is only meant to isolate/validate the stem architecture.
+# 16 is confirmed to fit; BATCH_SIZE lets you probe the actual ceiling
+# between 16 (works) and 128 (OOMs) without editing this file, e.g. to
+# double-check the configs/sweep/image/tune_kkan_arch.yaml choice(8,16,32)
+# range.
 #
 # Submit: sbatch scripts/test_kkan_convstem.submit
+# Probe a different batch size: sbatch --export=ALL,BATCH_SIZE=32 scripts/test_kkan_convstem.submit
 # Override the MLflow experiment name: sbatch --export=ALL,EXPERIMENT=<name> scripts/test_kkan_convstem.submit
 
 set -euo pipefail
@@ -58,6 +63,8 @@ TRACKING_URI=$(cat "${URL_FILE}")
 echo "Using MLFLOW_TRACKING_URI=${TRACKING_URI}"
 
 EXPERIMENT="${EXPERIMENT:-wl_mse_stage1_convstem_test}"
+BATCH_SIZE="${BATCH_SIZE:-16}"
+echo "Using training.batch_size=${BATCH_SIZE}"
 
 HYDRA_FULL_ERROR=1 uv run main.py \
   model=kkan \
@@ -65,7 +72,7 @@ HYDRA_FULL_ERROR=1 uv run main.py \
   objective=mse \
   seed=42 \
   training.epochs=20 \
-  training.batch_size=16 \
+  training.batch_size="${BATCH_SIZE}" \
   training.early_stopping=true \
   training.es_patience=12 \
   training.es_min_delta=0.001 \
