@@ -20,3 +20,15 @@ drop_path_rate: 0.0
 global_pool: token
 act_init: gelu
 weight_init: kan
+
+# Learnable conv stem (replaces the old fixed bilinear resize): a few cheap,
+# ordinary strided Conv2d layers downsample the native
+# ${dataset.img_height}x${dataset.img_width} map to img_h x img_w before
+# patch-embedding. Same resolution/RAM footprint the transformer sees as
+# before (img_h x img_w patch grid, unchanged) — only how that resolution is
+# reached changes, from a fixed interpolation to something the network can
+# learn. native/target = 1424/178 = 176/22 = 8 = 2^stem_layers.
+native_h: ${dataset.img_height}
+native_w: ${dataset.img_width}
+stem_channels: 8
+stem_layers: 3

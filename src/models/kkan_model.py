@@ -5,6 +5,7 @@ from torch.nn import functional as F
 from .base import BaseKANModel
 from src.modules.convkan import KAN_Convolutional_Layer
 from src.modules.convkan.kanlinear import KANLinear
+from src.modules.convstem import ConvStem, StemModel
 
 
 class KKAN_Small(nn.Module):
@@ -80,41 +81,75 @@ class KKAN_Small(nn.Module):
 
 
 class KKANModel(BaseKANModel):
-    def __init__(self, output_dim, img_h=28, img_w=28, in_chans=1, grid_size=5, **kwargs):
+    def __init__(
+        self,
+        output_dim,
+        img_h=28,
+        img_w=28,
+        in_chans=1,
+        grid_size=5,
+        native_h=None,
+        native_w=None,
+        stem_channels=8,
+        stem_layers=2,
+        **kwargs,
+    ):
         self.output_dim = output_dim
         self.img_h = img_h
         self.img_w = img_w
         self.in_chans = in_chans
         self.grid_size = grid_size
+        # native_h/w: resolution the input is resized to *before* the conv
+        # stem (defaults to img_h/img_w, i.e. no stem — the old fixed-resize
+        # behaviour) so non-weak-lensing callers are unaffected.
+        self.native_h = native_h if native_h is not None else img_h
+        self.native_w = native_w if native_w is not None else img_w
+        self.stem_channels = stem_channels
+        self.stem_layers = stem_layers
 
     def build(self, device="cpu"):
-        self.model = KKAN_Small(
+        use_stem = (self.native_h, self.native_w) != (self.img_h, self.img_w)
+        kkan = KKAN_Small(
             grid_size=self.grid_size,
             img_h=self.img_h,
             img_w=self.img_w,
-            in_chans=self.in_chans,
+            in_chans=self.stem_channels if use_stem else self.in_chans,
             num_classes=self.output_dim,
-        ).to(device)
+        )
+        if use_stem:
+            stem = ConvStem(
+                in_chans=self.in_chans,
+                out_channels=self.stem_channels,
+                native_h=self.native_h,
+                native_w=self.native_w,
+                target_h=self.img_h,
+                target_w=self.img_w,
+                n_layers=self.stem_layers,
+            )
+            self.model = StemModel(stem, kkan).to(device)
+        else:
+            self.model = kkan.to(device)
         self.device = device
 
     def _prepare_input(self, x: torch.Tensor) -> torch.Tensor:
-        """Bring any input to a (B, C, img_h, img_w) tensor.
+        """Bring any input to a (B, C, native_h, native_w) tensor.
 
         KKAN is a conv-KAN classifier. MNIST-style data is already the right
         size; the weak-lensing maps are (B, 1, 1424, 176) and are bilinearly
-        resized to ``img_h x img_w`` here. img_h/img_w keep the native 8:1
-        aspect ratio (default 178x22 = 1424x176 / 8), so the map is downscaled
-        without distortion. The output_dim raw outputs double as the (Om, S8)
+        resized to ``native_h x native_w`` here (a no-op unless a smaller
+        native size was configured) — the learnable conv stem (see build())
+        then downsamples to ``img_h x img_w`` on its own, keeping the native
+        8:1 aspect ratio. The output_dim raw outputs double as the (Om, S8)
         regression head under objective=mse.
         """
         x = x.to(self.device)
         if x.dim() == 2:
-            x = x.view(-1, self.in_chans, self.img_h, self.img_w)
+            x = x.view(-1, self.in_chans, self.native_h, self.native_w)
         elif x.dim() == 3:
             x = x.unsqueeze(1)
-        if x.shape[-2] != self.img_h or x.shape[-1] != self.img_w:
+        if x.shape[-2] != self.native_h or x.shape[-1] != self.native_w:
             x = F.interpolate(
-                x, size=(self.img_h, self.img_w),
+                x, size=(self.native_h, self.native_w),
                 mode="bilinear", align_corners=False,
             )
         return x

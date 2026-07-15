@@ -10,3 +10,15 @@ img_w: 44    # 176 / 4
 in_chans: ${dataset.in_chans}
 
 grid_size: 5
+
+# Learnable conv stem (replaces the old fixed bilinear resize): a couple of
+# cheap, ordinary strided Conv2d layers downsample the native
+# ${dataset.img_height}x${dataset.img_width} map to img_h x img_w before the
+# (expensive) KAN-conv layers. Same resolution/RAM footprint the KAN layers
+# see as before (img_h x img_w) — only how that resolution is reached
+# changes, from a fixed interpolation to something the network can learn.
+# native/target = 1424/356 = 176/44 = 4 = 2^stem_layers.
+native_h: ${dataset.img_height}
+native_w: ${dataset.img_width}
+stem_channels: 8
+stem_layers: 2

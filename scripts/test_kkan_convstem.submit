@@ -1,0 +1,71 @@
+#!/bin/bash
+#SBATCH --time=04:00:00
+#SBATCH --job-name=kan_test_kkan_convstem
+#SBATCH --ntasks=1
+#SBATCH --nodes=1
+#SBATCH --account=cai_ivs
+#SBATCH --partition=gpu
+#SBATCH --gres=gpu:1
+#SBATCH --mem=64G
+#SBATCH --output=/cluster/home/baumgnoa/log/%j_%N_test_kkan_convstem.out
+#SBATCH --error=/cluster/home/baumgnoa/log/%j_%N_test_kkan_convstem.err
+#SBATCH --export=ALL
+#
+# One direct (non-sweep) KKAN run to check the new learnable conv-stem
+# front-end (src/modules/convstem.py): the model now reaches img_h x img_w
+# (356x44) via a couple of strided Conv2d layers instead of a fixed bilinear
+# resize, at the same resolution/RAM footprint the KAN-conv layers saw before
+# (dataset.img_height/width -> model.native_h/w -> stem -> img_h/w, wired in
+# configs/model/kkan.yaml). Hyperparameters below are the wl_mse_stage1 best
+# trial, reused as-is so this run isolates the architecture change.
+#
+# Submit: sbatch scripts/test_kkan_convstem.submit
+# Override the MLflow experiment name: sbatch --export=ALL,EXPERIMENT=<name> scripts/test_kkan_convstem.submit
+
+set -euo pipefail
+export PYTHONUNBUFFERED=1
+export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
+module load uv/0.10.10
+cd /cluster/home/baumgnoa/kan-weak-lensing
+
+export UV_PROJECT_ENVIRONMENT=/cluster/home/baumgnoa/kan-weak-lensing/.venv
+export UV_PYTHON_DOWNLOADS=manual
+export UV_PYTHON_PREFERENCE=only-managed
+uv python install 3.12
+uv sync
+
+# Wait for the mlflow server job to publish its URL (same handoff as
+# scripts/_tune_common.sh / scripts/smoke_test_scattering.submit).
+URL_FILE=/cluster/home/baumgnoa/kan-weak-lensing/mlflow/server_url.txt
+for i in $(seq 1 60); do
+  if [[ -s "${URL_FILE}" ]]; then break; fi
+  echo "Waiting for MLflow URL at ${URL_FILE} (${i}/60)..."
+  sleep 10
+done
+if [[ ! -s "${URL_FILE}" ]]; then
+  echo "MLflow URL file never appeared; is the mlflow_server job running?" >&2
+  exit 1
+fi
+TRACKING_URI=$(cat "${URL_FILE}")
+echo "Using MLFLOW_TRACKING_URI=${TRACKING_URI}"
+
+EXPERIMENT="${EXPERIMENT:-wl_mse_stage1_convstem_test}"
+
+HYDRA_FULL_ERROR=1 uv run main.py \
+  model=kkan \
+  dataset=weak_lensing \
+  objective=mse \
+  seed=42 \
+  training.epochs=20 \
+  training.batch_size=128 \
+  training.early_stopping=true \
+  training.es_patience=12 \
+  training.es_min_delta=0.001 \
+  training.es_restore_best=true \
+  optimizer=adam \
+  optimizer.lr=0.004584411528121683 \
+  optimizer.weight_decay=0.004026222461166155 \
+  mlflow_tracking_uri="${TRACKING_URI}" \
+  +experiment="${EXPERIMENT}"
+
+echo "=== kkan conv-stem test run complete ==="
