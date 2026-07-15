@@ -90,7 +90,8 @@ class KKANModel(BaseKANModel):
         grid_size=5,
         native_h=None,
         native_w=None,
-        stem_channels=8,
+        stem_channels=1,
+        stem_hidden_channels=8,
         stem_layers=2,
         **kwargs,
     ):
@@ -104,7 +105,13 @@ class KKANModel(BaseKANModel):
         # behaviour) so non-weak-lensing callers are unaffected.
         self.native_h = native_h if native_h is not None else img_h
         self.native_w = native_w if native_w is not None else img_w
+        # stem_channels stays small (default 1, matching the original in_chans)
+        # because KAN_Convolutional_Layer's cost scales with in_channels x
+        # out_channels (one KANLinear per pair, see convstem.py docstring) —
+        # widening it multiplies conv1's cost instead of the stem's. Richer
+        # intermediate features happen in stem_hidden_channels instead.
         self.stem_channels = stem_channels
+        self.stem_hidden_channels = stem_hidden_channels
         self.stem_layers = stem_layers
 
     def build(self, device="cpu"):
@@ -120,6 +127,7 @@ class KKANModel(BaseKANModel):
             stem = ConvStem(
                 in_chans=self.in_chans,
                 out_channels=self.stem_channels,
+                hidden_channels=self.stem_hidden_channels,
                 native_h=self.native_h,
                 native_w=self.native_w,
                 target_h=self.img_h,

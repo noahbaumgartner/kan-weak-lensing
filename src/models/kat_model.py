@@ -29,6 +29,7 @@ class KATModel(BaseKANModel):
         native_h=None,
         native_w=None,
         stem_channels=8,
+        stem_hidden_channels=None,
         stem_layers=3,
         **kwargs,
     ):
@@ -54,7 +55,10 @@ class KATModel(BaseKANModel):
         # behaviour) so non-weak-lensing callers are unaffected.
         self.native_h = native_h if native_h is not None else img_h
         self.native_w = native_w if native_w is not None else img_w
+        # unlike KKAN, patch_embed is a single ordinary Conv2d, so stem
+        # out_channels is cheap here — no need to keep it small.
         self.stem_channels = stem_channels
+        self.stem_hidden_channels = stem_hidden_channels
         self.stem_layers = stem_layers
 
     def build(self, device="cpu"):
@@ -81,6 +85,7 @@ class KATModel(BaseKANModel):
             stem = ConvStem(
                 in_chans=self.in_chans,
                 out_channels=self.stem_channels,
+                hidden_channels=self.stem_hidden_channels,
                 native_h=self.native_h,
                 native_w=self.native_w,
                 target_h=self.img_h,

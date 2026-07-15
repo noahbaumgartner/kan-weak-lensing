@@ -18,7 +18,16 @@ grid_size: 5
 # see as before (img_h x img_w) — only how that resolution is reached
 # changes, from a fixed interpolation to something the network can learn.
 # native/target = 1424/356 = 176/44 = 4 = 2^stem_layers.
+#
+# stem_channels stays at 1 (matching the original in_chans): conv1
+# (KAN_Convolutional_Layer) instantiates in_channels x out_channels KANLinear
+# kernels and evaluates each over the full output map, so its cost scales
+# multiplicatively with stem_channels — widening it (tried 8: OOM'd
+# immediately, 40 kernels instead of 5) multiplies conv1's cost, not the
+# stem's. stem_hidden_channels gives the stem itself richer intermediate
+# features without touching conv1's input width.
 native_h: ${dataset.img_height}
 native_w: ${dataset.img_width}
-stem_channels: 8
+stem_channels: 1
+stem_hidden_channels: 8
 stem_layers: 2

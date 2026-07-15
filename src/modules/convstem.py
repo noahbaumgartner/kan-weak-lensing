@@ -41,6 +41,16 @@ class ConvStem(nn.Module):
     halves/divides an evenly-divisible input at each layer), so a rectangular
     downscale factor — like the elongated weak-lensing maps — still lands
     exactly on (target_h, target_w).
+
+    ``hidden_channels`` sizes every layer except the last (richer internal
+    features while downsampling); the last layer projects to ``out_channels``.
+    Keep ``out_channels`` matched to whatever the *downstream* layer's cost
+    scales with, not just "however many channels seem useful" — e.g. KKAN's
+    KAN_Convolutional_Layer instantiates one KANLinear per
+    (in_channels x out_channels) pair and evaluates each over the full output
+    map (see src/modules/convkan/convolution.py), so its cost scales
+    multiplicatively with the stem's out_channels, unlike an ordinary conv
+    (KAT's patch_embed) where extra input channels are cheap.
     """
 
     def __init__(
@@ -53,21 +63,24 @@ class ConvStem(nn.Module):
         target_w: int,
         n_layers: int = 2,
         kernel: int = 3,
+        hidden_channels: int | None = None,
     ):
         super().__init__()
         strides_h = _layer_strides(native_h, target_h, n_layers)
         strides_w = _layer_strides(native_w, target_w, n_layers)
+        hidden = hidden_channels if hidden_channels is not None else out_channels
 
         layers: list[nn.Module] = []
         c_in = in_chans
         pad = kernel // 2
-        for sh, sw in zip(strides_h, strides_w):
+        for i, (sh, sw) in enumerate(zip(strides_h, strides_w)):
+            c_out = out_channels if i == n_layers - 1 else hidden
             layers += [
-                nn.Conv2d(c_in, out_channels, kernel_size=kernel, stride=(sh, sw), padding=pad),
-                nn.BatchNorm2d(out_channels),
+                nn.Conv2d(c_in, c_out, kernel_size=kernel, stride=(sh, sw), padding=pad),
+                nn.BatchNorm2d(c_out),
                 nn.SiLU(),
             ]
-            c_in = out_channels
+            c_in = c_out
         self.net = nn.Sequential(*layers)
         self.out_channels = out_channels
 
