@@ -1,4 +1,5 @@
 import copy
+import random
 
 import torch
 from torch import nn
@@ -41,9 +42,22 @@ class EnsembleModel(BaseKANModel):
     initialised with ``seed_base + i``), so diversity comes from both the data
     and the init while staying fully reproducible.
 
+    Optionally, ``grid_jitter`` adds a third, architecture-level source of
+    diversity: pure data/init bagging keeps every member at the identical
+    grid resolution, so members tend to share the same systematic bias and
+    the inter-member spread can understate the true predictive uncertainty.
+    With ``grid_jitter > 0``, each member's grid-resolution knob (``num_grids``
+    for FastKAN/FasterKAN, ``grid_size`` for EfficientKAN; WavKAN has none, so
+    it's a no-op there) is perturbed by a reproducible ``± grid_jitter``
+    integer offset around the shared config value.
+
     The member is any ordinary single-model wrapper (default: FastKANModel),
     supplied already-constructed via Hydra and cloned ``n_members`` times.
     """
+
+    # Grid-resolution attribute names across the KAN member wrappers, checked
+    # in order (each wrapper has at most one of these).
+    _GRID_ATTRS = ("num_grids", "grid_size")
 
     def __init__(
         self,
@@ -54,6 +68,7 @@ class EnsembleModel(BaseKANModel):
         subset_fraction: float = 0.8,
         bootstrap: bool = False,
         subset_seed: int = 0,
+        grid_jitter: int = 0,
         **kwargs,
     ):
         # ``member`` is an un-built BaseKANModel wrapper (model is still None);
@@ -65,8 +80,23 @@ class EnsembleModel(BaseKANModel):
         self.subset_fraction = float(subset_fraction)
         self.bootstrap = bool(bootstrap)
         self.subset_seed = int(subset_seed)
+        self.grid_jitter = int(grid_jitter)
         self.members: list[BaseKANModel] = []
         self.model: nn.Module | None = None
+
+    def _apply_grid_jitter(self, member: BaseKANModel, seed: int) -> None:
+        """Perturb member's grid resolution by a reproducible ± grid_jitter offset.
+
+        Uses its own ``random.Random`` (not the global/torch RNG already
+        seeded for init) so the offset is deterministic per member without
+        disturbing weight initialisation.
+        """
+        rng = random.Random(seed)
+        offset = rng.randint(-self.grid_jitter, self.grid_jitter)
+        for attr in self._GRID_ATTRS:
+            if hasattr(member, attr):
+                setattr(member, attr, max(1, getattr(member, attr) + offset))
+                break
 
     # ------------------------------------------------------------------ build
     def build(self, device: str = "cpu") -> None:
@@ -79,6 +109,8 @@ class EnsembleModel(BaseKANModel):
             if torch.cuda.is_available():
                 torch.cuda.manual_seed_all(seed)
             member = copy.deepcopy(self._member_proto)
+            if self.grid_jitter:
+                self._apply_grid_jitter(member, seed)
             member.build(device=device)
             self.members.append(member)
             mods.append(member.get_model())

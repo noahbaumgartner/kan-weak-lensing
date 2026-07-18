@@ -1,0 +1,43 @@
+# @package _global_
+#
+# Fixed best-MSE-Stage-2-Gewinner für EfficientKAN, wiederverwendet als
+# homogenes Bagging-Ensemble (siehe README "Ensemble-Versuch im Detail").
+# Quelle: MLflow-Experiment wl_mse_stage2, bester Trial nach final_test_mse
+# (parameter_count=11402624, shape=[128, 384, 512, 128, 2]).
+#
+# Architektur/Reduction/Optimizer/Training werden HIER fest gepinnt, nicht
+# gesweept — das ist ein direkter Lauf (kein --multirun), kein Sweep.
+#
+# Start: uv run python main.py +ensemble=efficientkan +experiment=<name>
+defaults:
+  - override /objective: ensemble
+  - override /member@model.member: efficientkan
+
+model:
+  n_members: 8
+  grid_jitter: 4
+  member:
+    layers_hidden: [128, 384, 512, 128, 2]
+    k: 3
+    grid_size: 29
+
+dataset:
+  reduction: conv
+  pool_stride: 7
+  conv_channels: 128
+  conv_layers: 2
+  conv_stride_h: 4
+  conv_stride_w: 2
+  conv_kernel: 7
+
+optimizer:
+  lr: 0.001
+  weight_decay: 0.0
+
+training:
+  batch_size: 256
+  epochs: 30
+  early_stopping: true
+  es_patience: 15
+  es_min_delta: 0.0001
+  es_restore_best: true

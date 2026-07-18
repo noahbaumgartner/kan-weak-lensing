@@ -1,0 +1,59 @@
+#!/bin/bash
+#SBATCH --time=1-00:00:00
+#SBATCH --job-name=kan_ensemble
+#SBATCH --ntasks=1
+#SBATCH --nodes=1
+#SBATCH --account=cai_ivs
+#SBATCH --partition=gpu_top
+#SBATCH --gres=gpu:1
+#SBATCH --mem=64G
+#SBATCH --output=/cluster/home/baumgnoa/log/%j_%N_ensemble_%x.out
+#SBATCH --error=/cluster/home/baumgnoa/log/%j_%N_ensemble_%x.err
+#SBATCH --export=ALL
+#
+# Direct (non-sweep) bagging-ensemble run for one architecture: replays its
+# fixed best-MSE Stage-2 winner (configs/ensemble/<CONFIG>.yaml — architecture,
+# reduction, optimizer, training, all pinned, no Optuna) as objective=ensemble,
+# n_members independent members trained on bootstrapped/subsampled data.
+#
+# Submit one model directly:
+#   sbatch --export=ALL,CONFIG=efficientkan,EXPERIMENT=wl_ensemble scripts/run_ensemble.submit
+# Submit all configs/ensemble/*.yaml at once: scripts/run_ensemble_all.sh <experiment>
+
+set -euo pipefail
+: "${CONFIG:?CONFIG must be set, e.g. CONFIG=efficientkan -> configs/ensemble/efficientkan.yaml}"
+: "${EXPERIMENT:?EXPERIMENT must be set (MLflow experiment name)}"
+
+export PYTHONUNBUFFERED=1
+export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
+module load uv/0.10.10
+cd /cluster/home/baumgnoa/kan-weak-lensing
+
+export UV_PROJECT_ENVIRONMENT=/cluster/home/baumgnoa/kan-weak-lensing/.venv
+export UV_PYTHON_DOWNLOADS=manual
+export UV_PYTHON_PREFERENCE=only-managed
+uv python install 3.12
+uv sync
+
+# Wait for the mlflow server job to publish its URL (same handoff as
+# scripts/_tune_common.sh).
+URL_FILE=/cluster/home/baumgnoa/kan-weak-lensing/mlflow/server_url.txt
+for i in $(seq 1 60); do
+  if [[ -s "${URL_FILE}" ]]; then break; fi
+  echo "Waiting for MLflow URL at ${URL_FILE} (${i}/60)..."
+  sleep 10
+done
+if [[ ! -s "${URL_FILE}" ]]; then
+  echo "MLflow URL file never appeared; is the mlflow_server job running?" >&2
+  exit 1
+fi
+TRACKING_URI=$(cat "${URL_FILE}")
+echo "Using MLFLOW_TRACKING_URI=${TRACKING_URI}, CONFIG=${CONFIG}"
+
+HYDRA_FULL_ERROR=1 uv run main.py \
+  +ensemble="${CONFIG}" \
+  dataset=weak_lensing \
+  mlflow_tracking_uri="${TRACKING_URI}" \
+  +experiment="${EXPERIMENT}"
+
+echo "=== ensemble (${CONFIG}) run complete ==="

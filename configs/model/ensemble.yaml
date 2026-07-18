@@ -25,3 +25,8 @@ subset_fraction: 0.8
 bootstrap: false
 # Base seed for the per-member data resample; member i uses subset_seed + i.
 subset_seed: 0
+# ± integer offset applied to each member's grid resolution (num_grids for
+# FastKAN/FasterKAN, grid_size for EfficientKAN; no-op for WavKAN), on top of
+# the data/init bagging above. 0 = off (every member uses the identical grid
+# resolution, the previous behaviour). See EnsembleModel docstring.
+grid_jitter: 0

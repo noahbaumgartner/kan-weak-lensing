@@ -1,0 +1,45 @@
+# @package _global_
+#
+# Fixed best-MSE-Stage-2-Gewinner für WavKAN, wiederverwendet als homogenes
+# Bagging-Ensemble (siehe README "Ensemble-Versuch im Detail"). Quelle:
+# MLflow-Experiment wl_mse_stage2, bester Trial nach final_test_mse
+# (parameter_count=80356, shape=[32, 512, 2]).
+#
+# Architektur/Reduction/Optimizer/Training werden HIER fest gepinnt, nicht
+# gesweept — das ist ein direkter Lauf (kein --multirun), kein Sweep.
+#
+# model.grid_jitter (siehe EnsembleModel) ist für WavKAN ohnehin ein No-op —
+# kein Grid-Attribut (num_grids/grid_size) auf WavKANModel, nur wavelet_type.
+#
+# Start: uv run python main.py +ensemble=wavkan +experiment=<name>
+defaults:
+  - override /objective: ensemble
+  - override /member@model.member: wavkan
+
+model:
+  n_members: 8
+  grid_jitter: 0
+  member:
+    layers_hidden: [32, 512, 2]
+    wavelet_type: dog
+
+dataset:
+  reduction: conv
+  pool_stride: 9
+  conv_channels: 32
+  conv_layers: 2
+  conv_stride_h: 4
+  conv_stride_w: 2
+  conv_kernel: 3
+
+optimizer:
+  lr: 0.001
+  weight_decay: 0.0
+
+training:
+  batch_size: 256
+  epochs: 30
+  early_stopping: true
+  es_patience: 15
+  es_min_delta: 0.0001
+  es_restore_best: true
