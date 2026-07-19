@@ -9,6 +9,15 @@ dense maps from the training split -- including the shape noise that is
 actually added during training -- and logs each as its own PNG artifact
 under a new, dedicated MLflow experiment.
 
+In addition to the N_EXAMPLES noisy gallery maps, it logs one noiseless/noisy
+comparison pair for the same underlying map (same colour scale in both
+panels), since shape noise at this survey's ng/pixel-size is not obviously
+negligible by eye: sigma = 0.4/sqrt(2*ng*pixel_size_arcmin^2) ~= 0.026 in
+kappa units (Section~\ref{sec:weak_lensing}), comparable to the signal RMS
+itself -- this is the standard weak-lensing "shape noise dominates the
+per-pixel signal" situation that motivates learning calibrated uncertainties
+(Section~\ref{sec:uq}) rather than just point estimates.
+
 Standardisation (input z-scoring, label z-scoring) is disabled here so the
 saved images show the raw kappa scale and the plot titles show the actual
 (Omega_m, S8) values, rather than normalised training-time values.
@@ -49,6 +58,33 @@ OmegaConf.register_new_resolver("make_width", _make_width, replace=True)
 OmegaConf.register_new_resolver("reduced_dim", reduced_dim, replace=True)
 
 
+def _to_strip(dense: np.ndarray) -> np.ndarray:
+    """(H, W) -> transposed wide strip, matching the WIDE12H survey field;
+    far more legible than the native tall H x W = 1424 x 176 orientation."""
+    return dense.T
+
+
+def _dense_noiseless(map_ds, i: int) -> np.ndarray:
+    """Reconstruct the same map map_ds[i] would return, but without the
+    shape-noise step of _MapDataset.__getitem__ (map_ds.add_noise is a
+    per-dataset flag, always True for the training split -- this bypasses it
+    for a direct noiseless/noisy comparison)."""
+    dense = np.zeros(map_ds.mask.shape, dtype=np.float32)
+    dense[map_ds.mask] = map_ds.kappa_flat[i].astype(np.float32, copy=False)
+    return dense
+
+
+def _plot_map(img: np.ndarray, title: str, vmax: float):
+    fig, ax = plt.subplots(figsize=(12, 12 * img.shape[0] / img.shape[1]))
+    im = ax.imshow(img, cmap="RdBu_r", vmin=-vmax, vmax=vmax, aspect="equal")
+    ax.set_title(title, fontsize=9)
+    ax.set_xticks([])
+    ax.set_yticks([])
+    fig.colorbar(im, ax=ax, fraction=0.02, pad=0.02, label=r"$\kappa$")
+    fig.tight_layout()
+    return fig
+
+
 def main():
     with initialize(version_base=None, config_path="../configs"):
         cfg = compose(
@@ -80,27 +116,34 @@ def main():
 
         for rank, i in enumerate(idx):
             x, y = train_ds[int(i)]
-            # (1, H, W) -> (H, W); transpose to display as a wide strip
-            # (matches the WIDE12H survey field, far more legible than the
-            # native tall H x W = 1424 x 176 orientation).
-            img = x.squeeze(0).numpy().T
+            img = _to_strip(x.squeeze(0).numpy())
 
             vmax = float(np.nanpercentile(np.abs(img), 99))
             vmax = vmax if vmax > 0 else 1.0
 
-            fig, ax = plt.subplots(figsize=(12, 12 * img.shape[0] / img.shape[1]))
-            im = ax.imshow(img, cmap="RdBu_r", vmin=-vmax, vmax=vmax, aspect="equal")
             title = ", ".join(f"{n_}={v:.3f}" for n_, v in zip(target_names, y.numpy()))
-            ax.set_title(f"Example {rank}: {title}", fontsize=9)
-            ax.set_xticks([])
-            ax.set_yticks([])
-            fig.colorbar(im, ax=ax, fraction=0.02, pad=0.02, label=r"$\kappa$")
-            fig.tight_layout()
-
+            fig = _plot_map(img, title, vmax)
             mlflow.log_figure(fig, f"example_maps/map_{rank:02d}.png")
             plt.close(fig)
 
-    print(f"Logged {n} example maps to MLflow experiment '{EXPERIMENT_NAME}'.")
+        # Noiseless/noisy comparison pair for the first sampled map, same
+        # colour scale in both panels (see module docstring for why this is
+        # worth checking rather than assuming noise is negligible by eye).
+        i0 = int(idx[0])
+        noisy_img = _to_strip(train_ds[i0][0].squeeze(0).numpy())
+        noiseless_img = _to_strip(_dense_noiseless(train_ds, i0))
+        vmax = float(np.nanpercentile(np.abs(noisy_img), 99))
+        vmax = vmax if vmax > 0 else 1.0
+
+        fig = _plot_map(noiseless_img, "Without shape noise", vmax)
+        mlflow.log_figure(fig, "comparison/noiseless.png")
+        plt.close(fig)
+
+        fig = _plot_map(noisy_img, "With shape noise", vmax)
+        mlflow.log_figure(fig, "comparison/noisy.png")
+        plt.close(fig)
+
+    print(f"Logged {n} example maps and a noiseless/noisy pair to MLflow experiment '{EXPERIMENT_NAME}'.")
 
 
 if __name__ == "__main__":
