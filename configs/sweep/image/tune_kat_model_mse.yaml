@@ -1,0 +1,52 @@
+# @package _global_
+#
+# Stage 2 of the staged kat sweep (siehe README "Gestaffeltes Sweeping"),
+# objective=mse. Architektur + Optimizer + training.batch_size sind auf den
+# Stage-1-Gewinner (MLflow-Experiment wl_kat_mse_stage1_convstem, bester
+# Trial nach final_test_mse, parameter_count=1520038) fest gepinnt:
+# model.drop_path_rate/act_init/stem_channels bleiben gesweept (siehe
+# tune_kat_model.yaml).
+#
+#   sbatch --export=ALL,EXPERIMENT=wl_kat_mse_stage2_convstem,\
+#     SWEEP=image/tune_kat_model_mse scripts/tune_kat.submit
+#
+# model.stem_layers ist bewusst NICHT gesweept: ConvStem._layer_strides wirft
+# einen ValueError (ausserhalb von CUDA OOM in main.py nicht abgefangen),
+# falls der native/target-Downscale-Faktor (8, hier) keine exakte
+# n_layers-te Potenz eines Integer-Strides ist — nur n_layers in {1, 3} sind
+# gueltig, also nichts Sicheres zum Sweepen.
+defaults:
+  - override /hydra/sweeper: optuna
+  - override /hydra/sweeper/sampler: tpe
+  - override /model: kat
+  - override /objective: mse
+
+seed: 42
+
+model:
+  embed_dim: 128
+  depth: 7
+  num_heads: 2
+  mlp_ratio: 4.0
+
+optimizer:
+  lr: 0.0028178435672808855
+  weight_decay: 0.0015707848547466031
+
+training:
+  epochs: 20
+  batch_size: 128
+
+hydra:
+  sweeper:
+    sampler:
+      seed: ${seed}
+      n_startup_trials: 10
+    direction: minimize
+
+    n_trials: 20
+    n_jobs: 1
+    params:
+      model.drop_path_rate: interval(0.0, 0.2)
+      model.act_init: choice(gelu, swish)
+      model.stem_channels: choice(4, 8, 16, 32)
