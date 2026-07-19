@@ -1,0 +1,39 @@
+#!/bin/bash
+#SBATCH --time=00:20:00
+#SBATCH --job-name=kan_dump_example_maps
+#SBATCH --ntasks=1
+#SBATCH --nodes=1
+#SBATCH --account=cai_ivs
+#SBATCH --partition=cpu
+#SBATCH --cpus-per-task=2
+#SBATCH --mem=64G
+#SBATCH --output=/cluster/home/baumgnoa/log/%j_%N_dump_example_maps.out
+#SBATCH --error=/cluster/home/baumgnoa/log/%j_%N_dump_example_maps.err
+#SBATCH --export=ALL
+#
+# Logs ~10 example weak-lensing convergence maps (scripts/dump_example_maps.py)
+# to a dedicated MLflow experiment ("weak_lensing_example_maps"), for use as
+# a thesis figure. CPU-only: no model is trained, only the dataset is loaded
+# and reshaped. --mem mirrors the existing tune_*.submit jobs (e.g.
+# tune_fastkan.submit) since WeakLensingDataset.create() materialises the
+# full compact kappa array in host RAM regardless of how many examples are
+# actually used.
+#
+# Requires the MLflow tracking server to be running (scripts/mlflow_server.submit)
+# so mlflow_tracking_uri (configs/config.yaml, default http://127.0.0.1:9299)
+# actually resolves; run on the same node/allocation as the server, or export
+# MLFLOW_TRACKING_URI to override it.
+#
+# Submit: sbatch scripts/dump_example_maps.submit
+
+set -euo pipefail
+export PYTHONUNBUFFERED=1
+module load uv/0.10.10
+cd /cluster/home/baumgnoa/kan-weak-lensing
+
+export UV_PROJECT_ENVIRONMENT=/cluster/home/baumgnoa/kan-weak-lensing/.venv
+uv sync
+
+HYDRA_FULL_ERROR=1 uv run python scripts/dump_example_maps.py
+
+echo "=== dump_example_maps finished ==="
