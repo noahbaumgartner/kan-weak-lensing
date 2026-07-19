@@ -64,6 +64,19 @@ def _to_strip(dense: np.ndarray) -> np.ndarray:
     return dense.T
 
 
+def _mask_bbox(mask_strip: np.ndarray):
+    """Tight (row_slice, col_slice) bounding box around the valid (True)
+    region of a 2D boolean mask, already in strip orientation -- the WIDE12H
+    footprint does not span the full 1424-pixel length, so without this the
+    figure has a large blank/masked (white, since masked pixels are 0 and 0
+    is white on RdBu_r) margin on one side."""
+    rows = np.any(mask_strip, axis=1)
+    cols = np.any(mask_strip, axis=0)
+    r0, r1 = np.where(rows)[0][[0, -1]]
+    c0, c1 = np.where(cols)[0][[0, -1]]
+    return slice(int(r0), int(r1) + 1), slice(int(c0), int(c1) + 1)
+
+
 def _dense_noiseless(map_ds, i: int) -> np.ndarray:
     """Reconstruct the same map map_ds[i] would return, but without the
     shape-noise step of _MapDataset.__getitem__ (map_ds.add_noise is a
@@ -85,6 +98,48 @@ def _plot_map(img: np.ndarray, title: str, vmax: float):
     return fig
 
 
+def _plot_noise_comparison(
+    noiseless_img: np.ndarray,
+    noisy_img: np.ndarray,
+    om: float,
+    s8: float,
+    noise_sigma: float,
+    vmax: float,
+):
+    """Single figure, noiseless map stacked above the noisy one (matches the
+    top/bottom convention already used for Figure~\\ref{fig:mnist_fashionmnist}),
+    one shared colour scale and colorbar -- captioned for direct use in the
+    thesis (Section~\\ref{sec:exp_wl})."""
+    # Panels are very short relative to their width (WIDE12H strip), so a
+    # fixed inch budget is reserved for the suptitle + per-panel titles
+    # rather than sizing the figure from the image aspect ratio alone.
+    h, w = noiseless_img.shape
+    panel_h = 12 * h / w
+    title_budget = 1.3
+    fig, axes = plt.subplots(
+        2, 1, figsize=(12, 2 * panel_h + title_budget), sharex=True, sharey=True
+    )
+    panels = [
+        (axes[0], noiseless_img, "Simulated convergence map (noise-free)"),
+        (axes[1], noisy_img, rf"With shape noise ($\sigma_\kappa \approx {noise_sigma:.3f}$)"),
+    ]
+    for ax, img, subtitle in panels:
+        im = ax.imshow(img, cmap="RdBu_r", vmin=-vmax, vmax=vmax, aspect="equal")
+        ax.set_title(subtitle, fontsize=10)
+        ax.set_xticks([])
+        ax.set_yticks([])
+
+    fig.suptitle(
+        rf"Effect of shape noise on a simulated convergence map "
+        rf"($\Omega_\mathrm{{m}}={om:.3f}$, $S_8={s8:.3f}$)",
+        fontsize=12,
+        y=0.99,
+    )
+    fig.colorbar(im, ax=axes, fraction=0.02, pad=0.02, label=r"$\kappa$")
+    fig.subplots_adjust(top=1 - (title_budget * 0.55) / fig.get_size_inches()[1], hspace=0.5)
+    return fig
+
+
 def main():
     with initialize(version_base=None, config_path="../configs"):
         cfg = compose(
@@ -101,6 +156,7 @@ def main():
     data = dataset.create()
     train_ds = data["train_input"]
     target_names = list(cfg.dataset.get("target_names", ["Omega_m", "S8"]))
+    bbox = _mask_bbox(_to_strip(train_ds.mask))
 
     rng = np.random.default_rng(SEED)
     n = min(N_EXAMPLES, len(train_ds))
@@ -116,7 +172,7 @@ def main():
 
         for rank, i in enumerate(idx):
             x, y = train_ds[int(i)]
-            img = _to_strip(x.squeeze(0).numpy())
+            img = _to_strip(x.squeeze(0).numpy())[bbox]
 
             vmax = float(np.nanpercentile(np.abs(img), 99))
             vmax = vmax if vmax > 0 else 1.0
@@ -126,24 +182,26 @@ def main():
             mlflow.log_figure(fig, f"example_maps/map_{rank:02d}.png")
             plt.close(fig)
 
-        # Noiseless/noisy comparison pair for the first sampled map, same
-        # colour scale in both panels (see module docstring for why this is
+        # Combined noiseless/noisy comparison figure for the first sampled
+        # map, one shared colour scale (see module docstring for why this is
         # worth checking rather than assuming noise is negligible by eye).
         i0 = int(idx[0])
-        noisy_img = _to_strip(train_ds[i0][0].squeeze(0).numpy())
-        noiseless_img = _to_strip(_dense_noiseless(train_ds, i0))
+        y0 = train_ds[i0][1].numpy()
+        om, s8 = float(y0[0]), float(y0[1])
+        noisy_img = _to_strip(train_ds[i0][0].squeeze(0).numpy())[bbox]
+        noiseless_img = _to_strip(_dense_noiseless(train_ds, i0))[bbox]
         vmax = float(np.nanpercentile(np.abs(noisy_img), 99))
         vmax = vmax if vmax > 0 else 1.0
 
-        fig = _plot_map(noiseless_img, "Without shape noise", vmax)
-        mlflow.log_figure(fig, "comparison/noiseless.png")
+        ng = float(cfg.dataset.ng)
+        pixel_size_arcmin = float(cfg.dataset.pixel_size_arcmin)
+        noise_sigma = 0.4 / (2.0 * ng * pixel_size_arcmin**2) ** 0.5
+
+        fig = _plot_noise_comparison(noiseless_img, noisy_img, om, s8, noise_sigma, vmax)
+        mlflow.log_figure(fig, "comparison/noise_comparison.png")
         plt.close(fig)
 
-        fig = _plot_map(noisy_img, "With shape noise", vmax)
-        mlflow.log_figure(fig, "comparison/noisy.png")
-        plt.close(fig)
-
-    print(f"Logged {n} example maps and a noiseless/noisy pair to MLflow experiment '{EXPERIMENT_NAME}'.")
+    print(f"Logged {n} example maps and a combined noiseless/noisy comparison to MLflow experiment '{EXPERIMENT_NAME}'.")
 
 
 if __name__ == "__main__":
