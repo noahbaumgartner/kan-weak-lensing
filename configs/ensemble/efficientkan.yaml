@@ -14,7 +14,7 @@ defaults:
   - override /member@model.member: efficientkan
 
 model:
-  n_members: 8
+  n_members: 12
   grid_jitter: 4
   member:
     layers_hidden: [128, 384, 512, 128, 2]
@@ -36,8 +36,8 @@ optimizer:
 
 training:
   batch_size: 256
-  epochs: 30
-  early_stopping: true
+  epochs: 40
+  early_stopping: false
   es_patience: 15
   es_min_delta: 0.0001
   es_restore_best: true
