@@ -101,42 +101,38 @@ def _plot_map(img: np.ndarray, title: str, vmax: float):
 def _plot_noise_comparison(
     noiseless_img: np.ndarray,
     noisy_img: np.ndarray,
-    om: float,
-    s8: float,
     noise_sigma: float,
     vmax: float,
 ):
     """Single figure, noiseless map stacked above the noisy one (matches the
-    top/bottom convention already used for Figure~\\ref{fig:mnist_fashionmnist}),
-    one shared colour scale and colorbar -- captioned for direct use in the
-    thesis (Section~\\ref{sec:exp_wl})."""
-    # Panels are very short relative to their width (WIDE12H strip), so a
-    # fixed inch budget is reserved for the suptitle + per-panel titles
-    # rather than sizing the figure from the image aspect ratio alone.
+    top/bottom convention already used for Figure~\\ref{fig:mnist_fashionmnist}).
+    No suptitle: like the existing MNIST/FashionMNIST and Gaussian-blob example
+    figures, the overall description belongs in the LaTeX \\caption{}, not
+    baked into the image -- only the per-panel condition label is kept here,
+    analogous to their per-panel "MNIST: 7"-style titles."""
+    # Panels are very short relative to their width (WIDE12H strip); a fixed
+    # inch budget is reserved for the suptitle + per-panel titles. aspect
+    # is left to "auto" (not "equal") and layout to "constrained" (not a
+    # manual subplots_adjust) so the image always fills its axes box exactly
+    # -- with "equal" + manual spacing, a mismatch between the axes box and
+    # the image's true pixel aspect ratio left a blank margin on one side.
     h, w = noiseless_img.shape
     panel_h = 12 * h / w
-    title_budget = 1.3
     fig, axes = plt.subplots(
-        2, 1, figsize=(12, 2 * panel_h + title_budget), sharex=True, sharey=True
+        2, 1, figsize=(12, 2 * panel_h + 1.3), sharex=True, sharey=True,
+        layout="constrained",
     )
     panels = [
         (axes[0], noiseless_img, "Simulated convergence map (noise-free)"),
         (axes[1], noisy_img, rf"With shape noise ($\sigma_\kappa \approx {noise_sigma:.3f}$)"),
     ]
     for ax, img, subtitle in panels:
-        im = ax.imshow(img, cmap="RdBu_r", vmin=-vmax, vmax=vmax, aspect="equal")
+        im = ax.imshow(img, cmap="RdBu_r", vmin=-vmax, vmax=vmax, aspect="auto")
         ax.set_title(subtitle, fontsize=10)
         ax.set_xticks([])
         ax.set_yticks([])
 
-    fig.suptitle(
-        rf"Effect of shape noise on a simulated convergence map "
-        rf"($\Omega_\mathrm{{m}}={om:.3f}$, $S_8={s8:.3f}$)",
-        fontsize=12,
-        y=0.99,
-    )
     fig.colorbar(im, ax=axes, fraction=0.02, pad=0.02, label=r"$\kappa$")
-    fig.subplots_adjust(top=1 - (title_budget * 0.55) / fig.get_size_inches()[1], hspace=0.5)
     return fig
 
 
@@ -197,7 +193,14 @@ def main():
         pixel_size_arcmin = float(cfg.dataset.pixel_size_arcmin)
         noise_sigma = 0.4 / (2.0 * ng * pixel_size_arcmin**2) ** 0.5
 
-        fig = _plot_noise_comparison(noiseless_img, noisy_img, om, s8, noise_sigma, vmax)
+        # Logged, not drawn into the figure -- these belong in the LaTeX
+        # \caption{}, matching how fig:mnist_fashionmnist/fig:gaussian_blob
+        # keep their overall description out of the image itself.
+        mlflow.log_param("comparison_om", round(om, 4))
+        mlflow.log_param("comparison_s8", round(s8, 4))
+        mlflow.log_param("comparison_noise_sigma", round(noise_sigma, 4))
+
+        fig = _plot_noise_comparison(noiseless_img, noisy_img, noise_sigma, vmax)
         mlflow.log_figure(fig, "comparison/noise_comparison.png")
         plt.close(fig)
 
