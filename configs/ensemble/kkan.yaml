@@ -25,7 +25,7 @@ defaults:
   - override /member@model.member: kkan
 
 model:
-  n_members: 12
+  n_members: 8
   grid_jitter: 0
   member:
     grid_size: 12

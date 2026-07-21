@@ -17,7 +17,7 @@ defaults:
   - override /member@model.member: wavkan
 
 model:
-  n_members: 12
+  n_members: 8
   grid_jitter: 0
   member:
     layers_hidden: [32, 512, 2]

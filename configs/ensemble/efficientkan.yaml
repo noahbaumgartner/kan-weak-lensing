@@ -14,7 +14,7 @@ defaults:
   - override /member@model.member: efficientkan
 
 model:
-  n_members: 12
+  n_members: 8
   grid_jitter: 4
   member:
     layers_hidden: [128, 384, 512, 128, 2]

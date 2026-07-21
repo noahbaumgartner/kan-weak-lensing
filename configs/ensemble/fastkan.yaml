@@ -14,7 +14,7 @@ defaults:
   - override /member@model.member: fastkan
 
 model:
-  n_members: 12
+  n_members: 8
   grid_jitter: 1
   member:
     layers_hidden: [16, 384, 512, 128, 2]
