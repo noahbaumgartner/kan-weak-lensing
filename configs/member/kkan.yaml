@@ -1,0 +1,18 @@
+# Nesting-safe KKAN member for the ensemble. configs/model/kkan.yaml already
+# only references ${dataset.*} (no ${model.*} self-refs), so it resolves
+# correctly nested under model.member — this is that same config, reused
+# verbatim as the member group entry.
+_target_: src.models.kkan_model.KKANModel
+
+output_dim: ${dataset.output_dim}
+img_h: 356   # 1424 / 4
+img_w: 44    # 176 / 4
+in_chans: ${dataset.in_chans}
+
+grid_size: 5
+
+native_h: ${dataset.img_height}
+native_w: ${dataset.img_width}
+stem_channels: 1
+stem_hidden_channels: 8
+stem_layers: 2
