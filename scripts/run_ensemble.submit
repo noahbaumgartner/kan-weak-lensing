@@ -1,10 +1,10 @@
 #!/bin/bash
-#SBATCH --time=1-00:00:00
+#SBATCH --time=3-00:00:00
 #SBATCH --job-name=kan_ensemble
 #SBATCH --ntasks=1
 #SBATCH --nodes=1
 #SBATCH --account=cai_ivs
-#SBATCH --partition=gpu_top
+#SBATCH --partition=gpu
 #SBATCH --gres=gpu:1
 #SBATCH --mem=64G
 #SBATCH --output=/cluster/home/baumgnoa/log/%j_%N_ensemble_%x.out
