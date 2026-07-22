@@ -5,6 +5,12 @@
 #SBATCH --nodes=1
 #SBATCH --account=cai_ivs
 #SBATCH --partition=gpu
+# salinas = Tesla P40 (Pascal, sm_61): kat_rational's Triton kernels (KAT's
+# learnable rational activation) need sm_70+ and fail to compile there
+# ("Feature '.acq_rel' requires .target sm_70 or higher"). sacramento (A100)
+# and losangeles/sandiego/sanfrancisco (V100) are fine; excluded here rather
+# than pinning a --gres GPU type so any config can still land on either.
+#SBATCH --exclude=salinas
 #SBATCH --gres=gpu:1
 #SBATCH --mem=64G
 #SBATCH --output=/cluster/home/baumgnoa/log/%j_%N_ensemble_%x.out
