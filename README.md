@@ -49,9 +49,6 @@ uv run main.py --multirun +sweep=image/tune_fastkan dataset=weak_lensing
 
 # MLflow UI
 uv run mlflow ui --backend-store-uri sqlite:///mlflow/mlflow.db
-
-# notebooks
-uv run jupyter notebook notebooks/
 ```
 
 ## Training Objectives
