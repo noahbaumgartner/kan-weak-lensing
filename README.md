@@ -93,7 +93,7 @@ uv run main.py model=fastkan objective=score
 A single sweep over architecture, optimizer, model-specific parameters, and reduction method at once has too many combinations to converge within the cluster's time limit. Search therefore proceeds in stages per model, each fixing the best configuration from the previous stage. Stage 1 uses the same architecture search space for both objectives (see [Training Objectives](#training-objectives)), but since MSE and Score train under different loss functions and output dimensions, it still needs to be run once per objective, producing two independent Stage-1 winners that each feed their own Stage-2 sweep. Stage 3 (deep ensemble) exists only for the MSE track, since Score already learns its own uncertainty jointly.
 
 - **Stage 1, architecture** (`configs/sweep/tune_<model>_stage1.yaml`) sweeps only architecture and optimizer (`lr`, `weight_decay`): `model.n_hidden_layers`/`hidden_width_*` for the MLP-style models, the transformer capacity knobs (`embed_dim`, `depth`, `num_heads`, `mlp_ratio`) plus `training.batch_size` for `kat`, and just `training.batch_size` for `kkan` (its first KAN-convolution layer alone needs ~26GB at batch size 128, so batch size is the binding capacity knob there). Reduction is pinned to `conv` instead of the dataset default `avgpool`, since `conv` retains more small-scale, non-Gaussian information, needed to break the $\Omega_m$-$S_8$ degeneracy (not applicable to `kkan`/`kat`, which have no reduction stage). Model-specific parameters (`grid_size`, `num_grids`, `wavelet_type`, ...) stay at their config default. One config per model, but **run twice**, once with `objective=mse` and once with `objective=score`, since the trained loss differs even though the search space doesn't.
-- **Stage 2, reduction/model params** (`tune_<model>_stage2_mse.yaml`/`tune_<model>_stage2_score.yaml`) fixes the matching Stage-1 winner (the one trained under the same objective) and sweeps model-specific parameters together with the reduction method (where applicable, not for `kkan`/`kat`). Run separately per objective, the `_mse`/`_score` suffix picks which and already bakes in the corresponding `objective=` override. Architecture and optimizer are **not** swept again. How the winner is fixed differs slightly: the winning **architecture** is pinned inside the `_stage2_*` config itself, and for `kkan`/`kat` the winning optimizer and batch size are pinned there too. For the four MLP-style models the winning **optimizer** (`lr`, `weight_decay`) is passed at submit time via `EXTRA_weak_lensing` instead (see example below), otherwise Stage 2 silently runs on the Adam defaults from `configs/optimizer/adam.yaml`.
+- **Stage 2, reduction/model params** (`tune_<model>_stage2_mse.yaml`/`tune_<model>_stage2_score.yaml`) fixes the matching Stage-1 winner (the one trained under the same objective) and sweeps model-specific parameters together with the reduction method (where applicable, not for `kkan`/`kat`). Run separately per objective, the `_mse`/`_score` suffix picks which and already bakes in the corresponding `objective=` override. Architecture and optimizer are **not** swept again. Every `_stage2_*` config is fully self-contained: it pins the fixed architecture, optimizer, and (for `kkan`/`kat`) batch size directly, so no extra overrides are needed at submit time.
 - **Stage 3, ensemble** (MSE track only, no `_score` counterpart) retrains the best Stage-1/2 (MSE) configuration $M$ times with different seeds/data subsets to form the deep ensemble. No further hyperparameter search, a fixed recipe under `configs/ensemble/<model>.yaml` replays the winning config directly instead of running another Optuna sweep, see [Ensemble Runs](#ensemble-runs) below.
 
 ```bash
@@ -103,13 +103,12 @@ sbatch --export=ALL,EXPERIMENT=wl_efficientkan_mse,SWEEP_SUFFIX=_stage1,OBJECTIV
 sbatch --export=ALL,EXPERIMENT=wl_efficientkan_score,SWEEP_SUFFIX=_stage1,OBJECTIVE=score \
   scripts/tune_efficientkan.submit
 
-# inspect the best Stage-1 trial per objective in MLflow, then fix its architecture/optimizer overrides
+# inspect the best Stage-1 trial per objective in MLflow, then pin its winning
+# values into the corresponding _stage2_* config
 
-# Stage 2: sweep model-specific params + reduction. The winning architecture is already
-# pinned inside the _stage2_mse config (objective too, no OBJECTIVE= override needed);
-# for the MLP-style models the Stage-1 optimizer winner is passed in via EXTRA_weak_lensing
-sbatch --export=ALL,EXPERIMENT=wl_efficientkan,SWEEP_SUFFIX=_stage2_mse,\
-EXTRA_weak_lensing="optimizer.lr=8e-4 optimizer.weight_decay=1e-5" \
+# Stage 2: sweep model-specific params + reduction. Architecture, optimizer, and
+# objective are all pinned inside the _stage2_mse config, nothing else to pass
+sbatch --export=ALL,EXPERIMENT=wl_efficientkan,SWEEP_SUFFIX=_stage2_mse \
   scripts/tune_efficientkan.submit
 
 # all models at once, per objective (submit_all.sh needs SWEEP_SUFFIX, there's no unstaged default anymore)
