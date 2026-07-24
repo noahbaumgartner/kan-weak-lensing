@@ -1,4 +1,3 @@
-# Nesting-safe FasterKAN member for the ensemble (no ${model.*} self-refs).
 _target_: src.models.fasterkan_model.FasterKANModel
 layers_hidden: ${make_width:${dataset.input_dim},${dataset.output_dim},${dataset.n_hidden},${dataset.hidden_width_min},${dataset.hidden_width_min},${dataset.hidden_width_min},${dataset.hidden_width_min}}
 num_grids: 8

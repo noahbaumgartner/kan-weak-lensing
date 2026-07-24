@@ -50,13 +50,10 @@ class KATModel(BaseKANModel):
         self.global_pool = global_pool
         self.act_init = act_init
         self.weight_init = weight_init
-        # native_h/w: resolution the input is resized to *before* the conv
-        # stem (defaults to img_h/img_w, i.e. no stem — the old fixed-resize
-        # behaviour) so non-weak-lensing callers are unaffected.
+        # defaults to img_h/img_w (= no stem) so non-weak-lensing callers are unaffected
         self.native_h = native_h if native_h is not None else img_h
         self.native_w = native_w if native_w is not None else img_w
-        # unlike KKAN, patch_embed is a single ordinary Conv2d, so stem
-        # out_channels is cheap here — no need to keep it small.
+        # unlike KKAN, patch_embed is an ordinary Conv2d, so this is cheap
         self.stem_channels = stem_channels
         self.stem_hidden_channels = stem_hidden_channels
         self.stem_layers = stem_layers
@@ -98,17 +95,7 @@ class KATModel(BaseKANModel):
         self.device = device
 
     def _prepare_input(self, x: torch.Tensor) -> torch.Tensor:
-        """Bring any input to a (B, C, native_h, native_w) tensor.
-
-        KAT is a KAN-ViT that patch-embeds the image; timm's PatchEmbed handles
-        rectangular sizes natively. MNIST-style data is already the right size;
-        the weak-lensing maps are (B, 1, 1424, 176) and are bilinearly resized
-        to ``native_h x native_w`` here (a no-op unless a smaller native size
-        was configured) — the learnable conv stem (see build()) then
-        downsamples to ``img_h x img_w`` on its own, keeping the native 8:1
-        aspect ratio; both must stay divisible by patch_size. The output_dim
-        outputs double as the (Om, S8) regression head under objective=mse.
-        """
+        """Bring any input to a (B, C, native_h, native_w) tensor."""
         x = x.to(self.device)
         if x.dim() == 2:
             x = x.view(-1, self.in_chans, self.native_h, self.native_w)

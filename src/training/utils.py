@@ -1,5 +1,3 @@
-"""Small helpers for MLflow logging, kept out of ``Trainer`` itself."""
-
 import random
 
 from omegaconf import OmegaConf
@@ -41,11 +39,7 @@ _NOUNS = [
     "hawk",
 ]
 
-# random.SystemRandom pulls from OS entropy rather than the seedable global
-# `random` state. Trainer.train() calls random.seed(cfg.seed) for
-# reproducibility, and every Hydra/Optuna sweep trial uses the same fixed
-# seed (it isn't swept per-trial) — so a name drawn from the global random
-# module would be identical across every trial in a sweep.
+# OS entropy, not the seedable global `random` state -- else every sweep trial gets the same name
 _sysrand = random.SystemRandom()
 
 

@@ -27,9 +27,7 @@ from src.training.utils import (
     get_shape,
 )
 
-# Versuche that train the 4-output (mu, log_sigma) head against score_loss_fn
-# and get the score/coverage/mse logging path; every other objective (mse)
-# gets the plain-MSE regression path.
+# objectives with a 4-output (mu, log_sigma) head + score/coverage logging; else plain MSE
 _SCORE_OBJECTIVES = frozenset({"score", "ensemble"})
 
 
@@ -44,11 +42,7 @@ class Trainer:
 
     def _create_loss_fn(self, objective: str):
         if objective in _SCORE_OBJECTIVES:
-            # FAIR-Universe weak-lensing: minimise the negative of the
-            # PDF leaderboard score with λ=1e3.  Labels must be
-            # standardised by the dataset so σ lives at a natural O(1)
-            # scale.  No gradient clipping / log σ clamping anymore — use a
-            # small LR if the λ·MSE term destabilises training.
+            # negative FAIR-Universe score, λ=1e3; labels must be standardised (see dataset)
             return score_loss_fn
         return lambda pred, target: torch.mean((pred - target) ** 2)
 
@@ -63,27 +57,20 @@ class Trainer:
     def train(self):
         cfg = self.cfg
 
-        # global seed
         self._seed_everything(cfg.get("seed", 42))
 
-        # load dataset
         dataset_obj = instantiate(cfg.dataset)
         dataset = dataset_obj.create()
 
-        # build model
         model = instantiate(cfg.model)
         model.build(device=self.device)
 
-        # optimizer factory: call with model.parameters() to build the torch optimizer
         optimizer_factory = instantiate(cfg.optimizer)
 
-        # objective (configs/objective/<name>.yaml) picks both the loss
-        # function and the metrics-logging path directly.
         objective = cfg.objective
         loss_fn = self._create_loss_fn(objective)
         uses_score_metrics = objective in _SCORE_OBJECTIVES
 
-        # setup MLflow
         mlflow.set_tracking_uri(cfg.get("mlflow_tracking_uri", "mlruns"))
         mlflow.set_experiment(cfg.get("experiment", "experiment"))
         mlflow.enable_system_metrics_logging()
@@ -91,7 +78,6 @@ class Trainer:
         mlflow.set_system_metrics_samples_before_logging(1)
 
         with mlflow.start_run(run_name=generate_run_name()):
-            # log config parameters
             flat_cfg = flatten_dict(OmegaConf.to_container(cfg, resolve=True))
             mlflow.log_params(flat_cfg)
             mlflow.log_param("parameter_count", model.parameter_count())
@@ -99,7 +85,6 @@ class Trainer:
             mlflow.log_param("model", get_model_name(cfg))
             mlflow.log_param("shape", get_shape(cfg))
 
-            # train
             t_start = time.time()
 
             fit_kwargs = dict(
@@ -131,19 +116,11 @@ class Trainer:
 
             train_time = time.time() - t_start
 
-            # log metrics per step
             if uses_score_metrics:
-                # ``train_loss`` / ``test_loss`` are the PDF score-loss
-                # (negative leaderboard score, λ=1e3) — i.e. the exact
-                # quantity submitted to Codabench.  Labels are
-                # standardised, so MSE/R²/score are reported in z-space;
-                # multiply MSE component-wise by std² to recover original
-                # units at submission time.
+                # labels are standardised, so MSE/R²/score below are logged in z-space
                 n_steps = len(results["train_loss"])
                 test_var = float(np.var(dataset.get("val_label")))
-                # ``test_score`` is the Codabench leaderboard score — computed
-                # in original Ω_m / S_8 units when labels were standardised,
-                # otherwise identical to ``-score_loss``.
+                # score_loss_original (if present) recovers the Codabench score in raw Om/S8 units
                 score_key = (
                     "score_loss_original"
                     if "score_loss_original" in results
@@ -165,7 +142,6 @@ class Trainer:
                         metrics["test_r2"] = 1.0 - test_mse / test_var
                     mlflow.log_metrics(metrics, step=step_i)
 
-                # Final summary metrics (last epoch).
                 final = {
                     k: v[-1] for k, v in results.items() if isinstance(v, list) and v
                 }
@@ -218,7 +194,6 @@ class Trainer:
                 mlflow.log_metric("final_train_r2", final_train_r2)
                 mlflow.log_metric("final_test_r2", final_test_r2)
 
-            # semantic error diagnostics
             val_input = dataset.get("val_input")
             val_label = dataset.get("val_label")
             label_stats = dataset.get("label_stats")
@@ -235,13 +210,7 @@ class Trainer:
                 y_pred = y_pred * label_std + label_mean
 
                 target_names = list(cfg.dataset.get("target_names", ["Omega_m", "S8"]))
-                # Purely diagnostic: the metrics that matter to Optuna are already
-                # logged above, so a plotting failure (e.g. an extreme-valued
-                # diverged trial hitting some other matplotlib/numpy edge case)
-                # must not crash the trial — Hydra's Optuna sweeper re-raises a
-                # failed trial's exception, which would kill the entire sweep,
-                # not just this one (see main.py's OutOfMemoryError guard for the
-                # same concern).
+                # purely diagnostic: don't let a plotting failure kill the whole Optuna sweep
                 try:
                     figs = {
                         "histogram_pred_vs_groundtruth": plot_histogram_pred_vs_groundtruth(

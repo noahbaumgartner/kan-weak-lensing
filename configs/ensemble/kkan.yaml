@@ -1,25 +1,4 @@
 # @package _global_
-#
-# Fixed best-MSE-Stage-2-Gewinner für KKAN, wiederverwendet als homogenes
-# Bagging-Ensemble (siehe README "Ensemble-Versuch im Detail"). Quelle:
-# MLflow-Experiment wl_kkan_stage2_mse, bester Trial nach final_test_mse
-# (parameter_count=139863).
-#
-# Architektur/Optimizer/training.batch_size+epochs werden HIER fest gepinnt
-# auf den Stage-2-Gewinner, nicht gesweept — das ist ein direkter Lauf (kein
-# --multirun), kein Sweep. early_stopping ist (anders als im Stage-2-Gewinner)
-# bewusst deaktiviert, damit jedes Member die vollen 20 Epochen trainiert.
-# dataset.img_height/width, in_chans bleiben auf den weak_lensing-Defaults
-# (identisch zum Stage-2-Gewinner) — kein Override nötig; model.img_h/img_w
-# (356x44, /4 statt /8) sind bereits in configs/model/kkan.yaml (und damit
-# hier in configs/member/kkan.yaml) fest verdrahtet.
-#
-# model.grid_jitter ist für KKAN — anders als bei KAT — KEIN No-op: grid_size
-# ist ein echtes Attribut (KAN_Convolutional_Layer-Aufloesung), siehe
-# EnsembleModel._GRID_ATTRS. Hier auf 0 belassen (keine Grid-Diversitaet
-# angefordert); bei Bedarf spaeter z.B. model.grid_jitter=2 setzen.
-#
-# Start: uv run python main.py +ensemble=kkan +experiment=<name>
 defaults:
   - override /objective: ensemble
   - override /member@model.member: kkan

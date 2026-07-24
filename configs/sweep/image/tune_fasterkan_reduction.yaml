@@ -1,14 +1,4 @@
 # @package _global_
-#
-# Stage 2 of the staged fasterkan sweep (siehe README "Gestaffeltes
-# Sweeping"): model.num_grids/exponent/inv_denominator + Reduction-Methode/
-# -Knobs. Architektur (model.n_hidden_layers/hidden_width_*) und Optimizer
-# (lr/weight_decay) werden NICHT hier gesweept, sondern muessen als fixe
-# Overrides von Stage 1 (tune_fasterkan_arch.yaml) mitgegeben werden, z.B.:
-#   sbatch --export=ALL,EXPERIMENT=...,SWEEP=image/tune_fasterkan_reduction,\
-#     EXTRA_weak_lensing="model.n_hidden_layers=2 model.hidden_width_0=494 \
-#     model.hidden_width_1=409 optimizer.lr=8e-4 optimizer.weight_decay=1e-5" \
-#     scripts/tune_fasterkan.submit
 defaults:
   - /sweep/image/_reduction_sweep
   - override /hydra/sweeper: optuna

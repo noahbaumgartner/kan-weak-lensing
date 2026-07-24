@@ -1,21 +1,4 @@
 # @package _global_
-#
-# Fixed best-MSE-Stage-2-Gewinner für KAT, wiederverwendet als homogenes
-# Bagging-Ensemble (siehe README "Ensemble-Versuch im Detail"). Quelle:
-# MLflow-Experiment wl_kat_stage2_mse, bester Trial nach final_test_mse
-# (parameter_count=1520038).
-#
-# Architektur/Optimizer/training.batch_size+epochs werden HIER fest gepinnt
-# auf den Stage-2-Gewinner, nicht gesweept — das ist ein direkter Lauf (kein
-# --multirun), kein Sweep. early_stopping ist (anders als im Stage-2-Gewinner)
-# bewusst deaktiviert, damit jedes Member die vollen 20 Epochen trainiert.
-# dataset.img_height/width, img_size_h/w, patch_size, in_chans bleiben auf den
-# weak_lensing-Defaults (identisch zum Stage-2-Gewinner, siehe
-# configs/dataset/weak_lensing.yaml) — kein Override nötig. model.grid_jitter
-# ist für KAT ohnehin ein No-op — kein Grid-Attribut (num_grids/grid_size),
-# nur ein ViT mit ConvStem.
-#
-# Start: uv run python main.py +ensemble=kat +experiment=<name>
 defaults:
   - override /objective: ensemble
   - override /member@model.member: kat

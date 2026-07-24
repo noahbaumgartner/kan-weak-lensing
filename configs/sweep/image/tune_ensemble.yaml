@@ -1,10 +1,4 @@
 # @package _global_
-#
-# Sweep für den Ensemble-Versuch. IMMER zusammen mit objective=ensemble laufen
-# lassen (setzt Modell=ensemble + score-Logging), z.B.:
-#   uv run python main.py --multirun +sweep=image/tune_ensemble objective=ensemble
-# Der zugehörige Submit-Job (scripts/tune_ensemble.submit) setzt OBJECTIVE
-# bereits automatisch.
 defaults:
   - override /hydra/sweeper: optuna
   - override /hydra/sweeper/sampler: tpe
@@ -24,9 +18,7 @@ hydra:
     n_trials: 30
     n_jobs: 1
     params:
-      # Anzahl Ensemble-Member — der Kern dieses Versuchs (8, 12, ... testen).
       model.n_members: choice(4, 8, 12, 16)
-      # Member-Architektur (default fastkan) — Spline-Auflösung.
       model.member.num_grids: range(4, 33)
       optimizer.lr: tag(log, interval(1e-5, 5e-3))
       optimizer.weight_decay: tag(log, interval(1e-6, 1e-2))
@@ -37,8 +29,3 @@ hydra:
       dataset.conv_kernel: choice(3, 5, 7)
       dataset.scattering_J: range(2, 4)       # scattering: Skalen (No-op bei avgpool/conv)
       dataset.scattering_order: choice(1, 2)
-# Reduktions-*Methode* (avgpool | conv | scattering) wird jetzt pro Trial
-# gesweept (dataset.reduction oben). Alle Methoden-Knoepfe werden immer
-# mitgesweept; die jeweils inaktiven Saetze sind fuer diesen Trial ein No-op.
-# pool_stride 6-9, conv_channels<=128 und scattering_J<=4 halten input_dim
-# moderat (kein voller Flatten -> kein OOM).

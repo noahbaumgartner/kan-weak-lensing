@@ -1,15 +1,4 @@
 # @package _global_
-#
-# Stage 1 of the staged kat sweep (siehe README "Gestaffeltes Sweeping"): die
-# Transformer-Architektur (embed_dim/depth/num_heads/mlp_ratio) + Optimizer +
-# training.batch_size. Kein Reduction-Wrapper bei KAT (nutzt timm's
-# PatchEmbed direkt). model.drop_path_rate/act_init (KAT-spezifische
-# Rational-Aktivierung + Regularisierung) bleiben auf ihren Config-Defaults
-# fixiert.
-#
-# Nach diesem Lauf: besten Trial in MLflow ansehen, Architektur + Optimizer +
-# batch_size als fixe Overrides in Stage 2 (tune_kat_model.yaml, via
-# EXTRA_weak_lensing) mitgeben.
 defaults:
   - /sweep/image/_optimizer_sweep
   - override /hydra/sweeper: optuna

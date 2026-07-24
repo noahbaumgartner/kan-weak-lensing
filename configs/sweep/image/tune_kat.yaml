@@ -26,7 +26,5 @@ hydra:
       model.mlp_ratio: choice(2.0, 4.0)
       model.drop_path_rate: interval(0.0, 0.2)
       model.act_init: choice(gelu, swish)
-      # Same proven range as tune_efficientkan. The old (1e-3, 1.0) upper bound
-      # diverges instantly now that labels are standardised (loss is O(1)).
       optimizer.lr: tag(log, interval(1e-5, 5e-3))
       optimizer.weight_decay: tag(log, interval(1e-6, 1e-2))

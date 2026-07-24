@@ -1,23 +1,4 @@
 # @package _global_
-#
-# Stage 2 of the staged kkan sweep (siehe README "Gestaffeltes Sweeping"),
-# objective=score. Optimizer + training.batch_size sind auf den
-# Stage-1-Gewinner (MLflow-Experiment wl_kkan_score_stage1_convstem, bester
-# Trial nach final_test_mse, parameter_count=159471) fest gepinnt:
-# model.grid_size + die Stem-Breite (stem_channels/stem_hidden_channels)
-# bleiben gesweept (siehe tune_kkan_model.yaml).
-#
-#   sbatch --export=ALL,EXPERIMENT=wl_kkan_score_stage2_convstem,\
-#     SWEEP=image/tune_kkan_model_score scripts/tune_kkan.submit
-#
-# model.stem_layers ist bewusst NICHT gesweept: ConvStem._layer_strides wirft
-# einen ValueError (ausserhalb von CUDA OOM in main.py nicht abgefangen),
-# falls der native/target-Downscale-Faktor (4, hier) keine exakte
-# n_layers-te Potenz eines Integer-Strides ist — nur n_layers in {1, 2} sind
-# gueltig, also nichts Sicheres zum Sweepen. model.stem_channels bleibt eng
-# (1-4): das ist conv1's in_channels, und KAN_Convolutional_Layer's Kosten
-# skalieren mit in_channels x out_channels — verbreitern multipliziert die
-# teure KAN-Conv-Schicht, nicht den Stem.
 defaults:
   - override /hydra/sweeper: optuna
   - override /hydra/sweeper/sampler: tpe

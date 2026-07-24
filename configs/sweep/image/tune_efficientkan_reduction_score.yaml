@@ -1,11 +1,4 @@
 # @package _global_
-#
-# Stage 2 of the staged efficientkan sweep (siehe README "Gestaffeltes
-# Sweeping"), objective=score. Architektur ist auf den Stage-1-Gewinner
-# (WL-Auswertung.xlsx, SCORE-Spalte) fest gepinnt: model.grid_size +
-# Reduction-Methode/-Knobs bleiben gesweept.
-#   sbatch --export=ALL,EXPERIMENT=...,SWEEP=image/tune_efficientkan_reduction_score \
-#     scripts/tune_efficientkan.submit
 defaults:
   - /sweep/image/_reduction_sweep
   - override /hydra/sweeper: optuna
@@ -23,10 +16,6 @@ model:
 
 training:
   epochs: 30   # max budget; early stopping ends trials sooner
-  # Stage-1 default (es_patience=12, es_min_delta=0.001) cut trials off too
-  # early against a 20-epoch cap and a 0.1%-relative improvement bar. Wider
-  # patience + smaller min_delta let genuinely-still-improving trials run
-  # further before being declared plateaued.
   es_patience: 15
   es_min_delta: 0.0001
 

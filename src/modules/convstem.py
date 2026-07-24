@@ -1,25 +1,14 @@
 """Learnable conv front end for the image-based KAN models (KKAN, KAT).
 
-Both KKAN and KAT used to reach their working resolution with a single fixed
-bilinear resize straight from the native ${dataset.img_height}x${img_width}
-map down to the model's target size, blindly discarding whatever small-scale
-structure fell between two pixels. A stem replaces that fixed interpolation
-with a few cheap, ordinary strided Conv2d layers (BatchNorm + SiLU) that learn
-what to keep while downsampling to the exact same target size — regular convs
-are far cheaper than the custom KAN-conv / attention layers that follow, so
-this doesn't change the resolution the expensive layers see (same RAM
-footprint), only how that resolution is reached.
+Replaces a fixed bilinear resize from the native map size down to the model's
+target resolution with a few cheap, ordinary strided Conv2d layers that learn
+what to keep while downsampling.
 """
 import torch.nn as nn
 
 
 def _layer_strides(native: int, target: int, n_layers: int) -> list[int]:
-    """Split the native/target downscale factor evenly across n_layers.
-
-    Requires the factor to be an exact n_layers-th power of an integer stride
-    (e.g. factor=4, n_layers=2 -> stride 2 twice) so the stem lands exactly on
-    (target_h, target_w) with no rounding.
-    """
+    """Split the native/target downscale factor evenly across n_layers (must divide exactly)."""
     if native == target:
         return [1] * n_layers
     if native % target != 0:
@@ -37,20 +26,8 @@ def _layer_strides(native: int, target: int, n_layers: int) -> list[int]:
 class ConvStem(nn.Module):
     """Strided Conv2d -> BatchNorm -> SiLU stack, ending at (target_h, target_w).
 
-    Stride is computed independently per axis (kernel=3, padding=1 exactly
-    halves/divides an evenly-divisible input at each layer), so a rectangular
-    downscale factor — like the elongated weak-lensing maps — still lands
-    exactly on (target_h, target_w).
-
-    ``hidden_channels`` sizes every layer except the last (richer internal
-    features while downsampling); the last layer projects to ``out_channels``.
-    Keep ``out_channels`` matched to whatever the *downstream* layer's cost
-    scales with, not just "however many channels seem useful" — e.g. KKAN's
-    KAN_Convolutional_Layer instantiates one KANLinear per
-    (in_channels x out_channels) pair and evaluates each over the full output
-    map (see src/modules/convkan/convolution.py), so its cost scales
-    multiplicatively with the stem's out_channels, unlike an ordinary conv
-    (KAT's patch_embed) where extra input channels are cheap.
+    Keep out_channels small for KKAN: KAN_Convolutional_Layer's cost scales
+    multiplicatively with it (one KANLinear per in x out channel pair).
     """
 
     def __init__(
@@ -89,10 +66,7 @@ class ConvStem(nn.Module):
 
 
 class StemModel(nn.Module):
-    """Prepend a :class:`ConvStem` to an inner model as a single nn.Module, so
-    the stem's parameters are picked up automatically wherever the wrapping
-    ``BaseKANModel`` iterates ``self.model.parameters()`` (optimizer
-    construction, ``parameter_count()``, checkpointing, ...)."""
+    """Prepend a ConvStem to an inner model as a single nn.Module, so its params are picked up automatically."""
 
     def __init__(self, stem: ConvStem, inner: nn.Module):
         super().__init__()

@@ -1,27 +1,8 @@
 # @package _global_
-#
-# Versuch 3 — Bagging-Ensemble.
-#
-# Mehrere KANs (gleiche Architektur) werden je auf MSE trainiert, jeder aber
-# auf einer *eigenen Zufalls-Teilmenge* der Trainingsdaten (Bagging). Dadurch
-# sind die Member naeherungsweise unabhaengige Schaetzer, und die Streuung
-# zwischen ihnen liefert eine statistisch begruendete Standardabweichung
-# (Gauss-Annahme), der Mittelwert den Punktschaetzer. Ergebnis pro Parameter:
-# (mu, log_sigma) -> 4 Outputs, ausgewertet mit denselben Score-/Coverage-
-# Metriken wie objective=score. Teilmengen-Groesse: model.subset_fraction,
-# Bootstrap statt Subsampling: model.bootstrap=true.
-#
-# Dieser Versuch tauscht das Modell auf den Ensemble-Wrapper (siehe defaults).
-# Member-Architektur waehlen: member@model.member=<fastkan|fasterkan|wavkan>,
-# Anzahl Member: model.n_members=12 (o.ae.).
 defaults:
   - override /model: ensemble
 
-# Score-Logging-Pfad (Score + 68%-Coverage + MSE) im Trainer — siehe
-# _SCORE_OBJECTIVES in src/training/trainer.py.
 objective: ensemble
 dataset:
-  # Jeder Member sagt die 2 Parameter (Om, S8) voraus; der Ensemble-Head
-  # erzeugt daraus die 4 Werte (mu, log_sigma).
   output_dim: 2
   num_targets: 2

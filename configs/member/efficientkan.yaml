@@ -1,7 +1,3 @@
-# Nesting-safe EfficientKAN member for the ensemble (no ${model.*}
-# self-references, so it resolves correctly under model.member). Width/depth
-# come straight from the dataset knobs; tune via dataset.n_hidden /
-# dataset.hidden_width_min or override model.member.* in a sweep.
 _target_: src.models.efficientkan_model.EfficientKANModel
 layers_hidden: ${make_width:${dataset.input_dim},${dataset.output_dim},${dataset.n_hidden},${dataset.hidden_width_min},${dataset.hidden_width_min},${dataset.hidden_width_min},${dataset.hidden_width_min}}
 k: 3

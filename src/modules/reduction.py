@@ -1,39 +1,18 @@
-"""Image -> vector reductions shared by the MLP-style KAN models.
+"""Image -> vector reductions shared by the MLP-style KAN models (avgpool | conv | scattering | none).
 
-A KAN's first-layer width is fixed at config-compose time from
-``dataset.input_dim`` while the actual reduced vector is produced at runtime by
-``ReductionWrapper``. Both go through :func:`reduced_dim` so they always agree:
-change the reduction method/params and the config width and runtime module move
-together.
-
-Available methods (set via ``dataset.reduction``):
-
-* ``avgpool``        — fixed-stride average pooling, then flatten.
-* ``conv``           — a small learnable strided-conv stack with an asymmetric
-  stride (larger along the bigger image dimension) followed by global average
-  pooling, leaving one feature per output channel. (Dozenten-Vorschlag 1.)
-* ``scattering``      — fixed (non-learnable) wavelet scattering transform
-  (kymatio, https://www.kymat.io/), then global average pooling over the
-  spatial scattering-coefficient map, leaving one feature per
-  scale/angle/order channel. Translation-invariant, deformation-stable
-  texture features — no training needed for the reduction itself.
-* ``none``           — flatten the full image (or pass tabular input through).
+reduced_dim() and ReductionWrapper must stay in sync: the former sizes the KAN's
+first layer at config-compose time, the latter produces the runtime vector.
 """
 import torch
 import torch.nn as nn
 
-# kymatio.torch eagerly imports the 3D (HarmonicScattering3D) frontend, which
-# pulls in scipy.special.sph_harm — removed in scipy>=1.15 (renamed
-# sph_harm_y) and unrelated to the 2D transform we use. Importing the 2D
-# frontend directly sidesteps that broken import chain.
+# import the 2D frontend directly: kymatio.torch also pulls in the 3D frontend,
+# which needs scipy.special.sph_harm (removed in scipy>=1.15)
 from kymatio.scattering2d.frontend.torch_frontend import ScatteringTorch2D as Scattering2D
 
 
 def _scattering_n_coeffs(J: int, L: int, order: int) -> int:
-    """Number of scattering channels kymatio produces for J scales, L angles,
-    up to ``order`` (1 or 2). Matches kymatio's own coefficient count: 1 (order
-    0, the lowpass) + L*J (order 1) + L^2 * J*(J-1)/2 (order 2, one path per
-    scale pair j1<j2 x angle pair)."""
+    """Number of scattering channels kymatio produces for J scales, L angles, up to order (1 or 2)."""
     n = 1 + L * J
     if order >= 2:
         n += L * L * J * (J - 1) // 2
@@ -56,12 +35,10 @@ def reduced_dim(
     if method == "avgpool":
         return in_chans * (h // int(pool_stride)) * (w // int(pool_stride))
     if method == "conv":
-        # The conv stack ends in global average pooling, so the feature count is
-        # just the number of output channels (independent of input H/W/stride).
+        # global-avg-pooled, so independent of input H/W/stride
         return int(conv_channels)
     if method == "scattering":
-        # Global-avg-pooled over space (like conv), so independent of H/W too —
-        # just in_chans scattering channels per input channel.
+        # global-avg-pooled too, so independent of H/W
         n_coeffs = _scattering_n_coeffs(
             int(scattering_J), int(scattering_L), int(scattering_order)
         )
@@ -72,11 +49,7 @@ def reduced_dim(
 
 
 class ReductionWrapper(nn.Module):
-    """Reduce 2D image inputs to a flat vector, then run the inner KAN.
-
-    For already-flat (tabular / functional) inputs the reduction is skipped and
-    the input is passed straight through, so non-image runs are unaffected.
-    """
+    """Reduce 2D image inputs to a flat vector, then run the inner KAN. No-op passthrough for flat inputs."""
 
     def __init__(
         self,
@@ -110,9 +83,7 @@ class ReductionWrapper(nn.Module):
                 else nn.Identity()
             )
         elif method == "conv":
-            # Learnable strided-conv encoder. The stride is asymmetric — larger
-            # along whichever spatial axis is bigger — to compress the elongated
-            # 1424x176 maps roughly isotropically before global average pooling.
+            # asymmetric stride (larger on the bigger axis) to compress elongated maps isotropically
             self.conv = _build_conv_encoder(
                 in_chans=int(in_chans),
                 out_channels=int(conv_channels),
@@ -122,8 +93,7 @@ class ReductionWrapper(nn.Module):
                 kernel=int(conv_kernel),
             )
         elif method == "scattering":
-            # Fixed (non-learnable) filters, sized to the exact input shape —
-            # shape is baked in at construction, like the conv encoder's stride.
+            # fixed filters, shape baked in at construction
             self.scattering = Scattering2D(
                 J=int(scattering_J),
                 shape=(int(img_height), int(img_width)),
@@ -136,13 +106,9 @@ class ReductionWrapper(nn.Module):
     def forward(self, x):
         if x.dim() == 4:  # (B, C, H, W)
             if self.method == "conv":
-                # (B, C, H, W) -> conv stack -> global-avg -> (B, conv_channels, 1, 1)
-                x = self.conv(x)
+                x = self.conv(x)  # -> (B, conv_channels, 1, 1)
             elif self.method == "scattering":
-                # (B, C, H, W) -> (B, C, n_coeffs, H', W') -> global-avg over
-                # space -> (B, C, n_coeffs), same "one feature per channel"
-                # shape as conv's global-avg-pooled output.
-                x = self.scattering(x).mean(dim=(-1, -2))
+                x = self.scattering(x).mean(dim=(-1, -2))  # -> (B, C, n_coeffs)
             else:
                 x = self.pool(x)
         return self.kan(self.flatten(x))

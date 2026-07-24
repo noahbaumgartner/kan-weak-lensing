@@ -1,68 +1,38 @@
 _target_: src.dataset.WeakLensingDataset
 
-# Path to the .npy files released by the FAIR-Universe challenge.
 data_dir: /cluster/projects/ska/weak-lensing/data/
 
-# Labels: keep (Omega_m, S_8) — the 2 cosmological parameters.
 n_targets: 2
 
-# Recommended split along the nuisance-parameter axis (axis=1).
 val_fraction: 0.2
 split_seed: 5566
 
-# noise_seed: null -> fresh shape-noise every epoch (augmentation).
 noise_seed: null
 ng: 30.0
 pixel_size_arcmin: 2.0
 standardize: true
-# Label z-scoring; overridden per objective (mse -> false, score -> true).
 standardize_labels: true
 
-# NOTE: loss / output_dim / num_targets define the *Versuch* (training
-# objective), not the data — they live in the objective config group
-# (configs/objective/{score,mse}.yaml) and are selected via objective=<name>.
-# n_targets below stays at 2: the dataset always keeps the 2 cosmological
-# labels (Om, S8); only the model head width (output_dim) changes per Versuch.
-
-# image metadata (used by vision models e.g. CNN / KAT)
 img_height: 1424
 img_width: 176
 in_chans: 1
 
-# Size the vision models (kkan, kat) resize the 1424x176 map to, keeping the
-# native ~8:1 aspect ratio (here an exact /8 downscale, no distortion). The
-# resize happens bilinearly in the model wrapper. Both dims must be divisible
-# by patch_size for kat (gcd(178,22)=2 -> patch_size in {1, 2}).
 img_size_h: 178   # 1424 / 8
 img_size_w: 22    # 176 / 8
 patch_size: 2
 
-# MLP-style KANs flatten the input, so the 1424x176 map is reduced first.
-# reduction: avgpool | conv | scattering | none.
-#   avgpool        fixed-stride average pooling, then flatten.
-#   conv           learnable strided-conv encoder + global-avg-pool (asymmetric stride).
-#   scattering     fixed wavelet scattering transform (kymatio) + global-avg-pool
-#                  over the spatial coefficient map (src/modules/reduction.py).
-# input_dim is derived from the active method+params so it always matches the
-# runtime ReductionWrapper. Default avgpool/stride=8 -> 178*22 = 3916 px.
 reduction: avgpool
 pool_stride: 8
-# conv encoder: out channels = KAN input width; stride is larger along the
-# bigger (height) axis to compress the elongated map roughly isotropically.
 conv_channels: 64
 conv_layers: 2
 conv_stride_h: 4
 conv_stride_w: 2
 conv_kernel: 3
-# wavelet scattering (kymatio Scattering2D): J scales, L angles, order 1|2.
-# KAN input width = in_chans * (1 + L*J [+ L^2*J*(J-1)/2 if order==2]).
 scattering_J: 3
 scattering_L: 8
 scattering_order: 2
 input_dim: ${reduced_dim:${dataset.reduction},${dataset.img_height},${dataset.img_width},${dataset.in_chans},${dataset.pool_stride},${dataset.conv_channels},${dataset.scattering_J},${dataset.scattering_L},${dataset.scattering_order}}
 
-# Width / depth knobs consumed by the MLP-style model configs
-# (fastkan / fasterkan / wavkan) via make_width and the sweep ranges.
 n_hidden: 2
 n_hidden_min: 1
 n_hidden_max: 3

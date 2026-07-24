@@ -8,9 +8,6 @@ layers_hidden: ${make_width:${dataset.input_dim},${dataset.output_dim},${model.n
 num_grids: 8
 exponent: 2
 inv_denominator: 0.5
-# Image -> vector reduction (avgpool | conv | scattering | none)
-# read from the dataset. Datasets that don't set these (tabular / 1D) default
-# to a no-op passthrough.
 reduction: ${oc.select:dataset.reduction,none}
 pool_stride: ${oc.select:dataset.pool_stride,1}
 conv_channels: ${oc.select:dataset.conv_channels,64}

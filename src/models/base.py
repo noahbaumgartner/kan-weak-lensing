@@ -41,12 +41,7 @@ class BaseKANModel(ABC):
         es_restore_best=True,
         **kwargs,
     ):
-        # Datasets return CPU tensors; the DataLoader moves each batch to
-        # the model's device on demand. Preloading the full dataset to GPU
-        # OOMs for larger sets like MNIST.
-        #
-        # dataset["train_input"] / ["val_input"] are torch Datasets yielding
-        # (x, y) — used by datasets that can't fit fully in RAM (weak_lensing).
+        # train_input/val_input are torch Datasets yielding (x, y), loaded lazily per batch
         train_ds = dataset["train_input"]
         val_ds = dataset["val_input"]
 
@@ -65,8 +60,6 @@ class BaseKANModel(ABC):
         opt = optimizer_factory(self.get_model().parameters())
 
         results = {"train_loss": [], "test_loss": []}
-        # Extra eval metrics get one list per key, populated on the val
-        # set after each epoch.  Keys are discovered from the first batch.
         extra_metric_keys: list[str] = []
 
         device = self.device
@@ -77,7 +70,6 @@ class BaseKANModel(ABC):
             enabled=early_stopping,
         )
         for epoch in tqdm(range(epochs), desc="Training"):
-            # --- Train (accumulate metrics during the step to skip a redundant eval pass) ---
             self.get_model().train()
             train_loss_sum = torch.zeros((), device=device)
             train_total = 0
@@ -100,7 +92,6 @@ class BaseKANModel(ABC):
 
             train_mse = (train_loss_sum / train_total).item()
 
-            # --- Validate (on val set only) ---
             self.get_model().eval()
             val_loss_sum = torch.zeros((), device=device)
             val_total = 0

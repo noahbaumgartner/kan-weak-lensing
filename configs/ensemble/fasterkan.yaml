@@ -1,14 +1,4 @@
 # @package _global_
-#
-# Fixed best-MSE-Stage-2-Gewinner für FasterKAN, wiederverwendet als
-# homogenes Bagging-Ensemble (siehe README "Ensemble-Versuch im Detail").
-# Quelle: MLflow-Experiment wl_mse_stage2, bester Trial nach final_test_mse
-# (parameter_count=366406, shape=[32, 512, 2]).
-#
-# Architektur/Reduction/Optimizer/Training werden HIER fest gepinnt, nicht
-# gesweept — das ist ein direkter Lauf (kein --multirun), kein Sweep.
-#
-# Start: uv run python main.py +ensemble=fasterkan +experiment=<name>
 defaults:
   - override /objective: ensemble
   - override /member@model.member: fasterkan

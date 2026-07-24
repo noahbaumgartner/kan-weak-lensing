@@ -1,25 +1,4 @@
 # @package _global_
-#
-# Versuch 2 — Score-as-loss (FAIR-Universe Leaderboard-Objective).
-#
-# Das Modell gibt 4 Werte aus: (mu_Om, mu_S8, log_sigma_Om, log_sigma_S8).
-# Trainiert wird gegen das Negative des Scores (KL-Divergenz zwischen wahrer
-# und vorhergesagter Gauss-Posterior, mit lambda=1e3-Penalty auf den
-# Punktschaetzer). Der Trainer loggt zusaetzlich MSE auf mu, die
-# 68%-Coverage und den Codabench-Score (src/training/metrics.py).
-#
-# Labels bleiben 2-dimensional (Om, S8); nur der Modell-Head ist auf 4
-# verbreitert. ``score_loss_fn`` (src/training/metrics.py) splittet den
-# 4-Vektor intern.
-#
-# standardize_labels: true — σ lebt dadurch auf einer natürlichen O(1)-Skala
-# (kalibriert sauberer) UND das geloggte final_test_r2 / _mse ist ehrlich
-# (z-Raum, Mittelwerte 0 → kein Pooling-Aufblähen). Der eingereichte Codabench-
-# Score bleibt unverändert: er wird über ``score_loss_original`` in die
-# ursprünglichen Om/S8-Einheiten zurückgerechnet (src/training/metrics.py).
-#
-# ``objective`` steuert im Trainer direkt sowohl die Loss-Funktion als auch
-# den Metrik-Logging-Pfad (src/training/trainer.py: _SCORE_OBJECTIVES).
 objective: score
 dataset:
   output_dim: 4

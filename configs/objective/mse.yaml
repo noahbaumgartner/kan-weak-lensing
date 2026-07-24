@@ -1,27 +1,4 @@
 # @package _global_
-#
-# Versuch 1 — Reine Regression mit MSE-Loss.
-#
-# Das Modell gibt genau die 2 kosmologischen Parameter aus (Om, S8). Die Labels
-# werden z-standardisiert (standardize_labels: true), d.h. Om und S8 leben beide
-# auf Mittelwert 0 / Std 1.
-#
-# WARUM standardize_labels: true (NICHT auf false stellen!):
-#   * Der MSE-Loss IST dadurch die *standardisierte* MSE — beide Parameter
-#     tragen gleich gewichtet bei (sonst dominiert der mit der größeren Roh-
-#     Skala), und der Wert ist direkt mit der Leaderboard-Spalte
-#     "MEAN MSE (STANDARDIZED)" vergleichbar.
-#   * final_test_r2 / _mse / _rmse sind dadurch *ehrlich*. Bei rohen Labels
-#     (false) bläht die Lücke zwischen den Om-/S8-Mittelwerten die gepoolte
-#     Varianz auf und R² wirkt künstlich gut (~0.95 statt ehrlich ~0.5).
-#
-# Keine Unsicherheitsschätzung. Der Trainer nutzt den Regressions-Pfad und loggt
-# genau einen final MSE / RMSE / R² — ``objective: mse`` ist der einzige
-# Versuch, der diesen Pfad nutzt (src/training/trainer.py: _SCORE_OBJECTIVES
-# enthält alle anderen).
-#
-# Hinweis: durch die Standardisierung ist die Loss-Skala ~100× größer als bei
-# rohen Labels — eine LR, die für rohe Labels getunt wurde, ggf. neu sweepen.
 objective: mse
 dataset:
   output_dim: 2

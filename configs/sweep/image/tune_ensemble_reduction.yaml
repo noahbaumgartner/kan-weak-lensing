@@ -1,14 +1,4 @@
 # @package _global_
-#
-# Stage 2 of the staged ensemble sweep (siehe README "Gestaffeltes
-# Sweeping"): model.member.num_grids + Reduction-Methode/-Knobs.
-# model.n_members und Optimizer (lr/weight_decay) werden NICHT hier
-# gesweept, sondern muessen als fixe Overrides von Stage 1
-# (tune_ensemble_arch.yaml) mitgegeben werden, z.B.:
-#   sbatch --export=ALL,EXPERIMENT=...,SWEEP=image/tune_ensemble_reduction,\
-#     EXTRA_weak_lensing="model.n_members=12 optimizer.lr=8e-4 \
-#     optimizer.weight_decay=1e-5" scripts/tune_ensemble.submit
-# IMMER zusammen mit objective=ensemble laufen lassen.
 defaults:
   - /sweep/image/_reduction_sweep
   - override /hydra/sweeper: optuna

@@ -11,52 +11,15 @@ from src.training.early_stopping import EarlyStopping
 
 
 class EnsembleModel(BaseKANModel):
-    """Bagging ensemble of KAN regressors → Gaussian posterior.
+    """Bagging ensemble of KAN regressors -> Gaussian posterior via member spread.
 
-    Versuch "ensemble": train ``n_members`` independent member models with the
-    *same* architecture, each on plain MSE against the cosmological parameters
-    (Om, S8). Crucially, each member is trained on its *own random subset* of
-    the training data (resampling / bagging), so the members are approximately
-    independent draws from the sampling distribution of the estimator. At eval
-    / predict time the member point-predictions are combined into a Gaussian:
-
-        mu        = mean over members      (per parameter)
-        log_sigma = log(std over members)  (per parameter)
-
-    Because each member sees different data, the spread between members
-    estimates how much the prediction would change under a different training
-    set — i.e. the std *is* a statistically grounded predictive uncertainty
-    (Gaussian assumption), not merely initialisation noise. ``predict`` returns
-    the 4-vector ``[mu_Om, mu_S8, log_sigma_Om, log_sigma_S8]`` expected by the
-    FAIR-Universe score / 68%-coverage metrics, so this plugs straight into the
-    score-style logging path of the Trainer.
-
-    Data resampling per member is controlled by:
-        ``subset_fraction`` — fraction of the training set each member sees
-                              (subsampling without replacement; ignored when
-                              ``bootstrap=True``).
-        ``bootstrap``       — if True, draw a full-size sample *with*
-                              replacement instead (classic bootstrap bagging;
-                              each member sees ~63% unique points).
-    Member i draws its subset with seed ``subset_seed + i`` (and is also
-    initialised with ``seed_base + i``), so diversity comes from both the data
-    and the init while staying fully reproducible.
-
-    Optionally, ``grid_jitter`` adds a third, architecture-level source of
-    diversity: pure data/init bagging keeps every member at the identical
-    grid resolution, so members tend to share the same systematic bias and
-    the inter-member spread can understate the true predictive uncertainty.
-    With ``grid_jitter > 0``, each member's grid-resolution knob (``num_grids``
-    for FastKAN/FasterKAN, ``grid_size`` for EfficientKAN; WavKAN has none, so
-    it's a no-op there) is perturbed by a reproducible ``± grid_jitter``
-    integer offset around the shared config value.
-
-    The member is any ordinary single-model wrapper (default: FastKANModel),
-    supplied already-constructed via Hydra and cloned ``n_members`` times.
+    Each member trains on its own data subset (subset_fraction/bootstrap) and
+    optionally a jittered grid resolution (grid_jitter), so the eval-time
+    spread across members is a statistically grounded uncertainty, not just
+    init noise. predict() returns [mu_Om, mu_S8, log_sigma_Om, log_sigma_S8].
     """
 
-    # Grid-resolution attribute names across the KAN member wrappers, checked
-    # in order (each wrapper has at most one of these).
+    # grid-resolution attr per member wrapper (num_grids/grid_size; WavKAN has neither)
     _GRID_ATTRS = ("num_grids", "grid_size")
 
     def __init__(
@@ -71,8 +34,7 @@ class EnsembleModel(BaseKANModel):
         grid_jitter: int = 0,
         **kwargs,
     ):
-        # ``member`` is an un-built BaseKANModel wrapper (model is still None);
-        # we deep-copy it per ensemble member in build().
+        # unbuilt wrapper, deep-copied per member in build()
         self._member_proto = member
         self.n_members = int(n_members)
         self.seed_base = int(seed_base)
@@ -85,12 +47,7 @@ class EnsembleModel(BaseKANModel):
         self.model: nn.Module | None = None
 
     def _apply_grid_jitter(self, member: BaseKANModel, seed: int) -> None:
-        """Perturb member's grid resolution by a reproducible ± grid_jitter offset.
-
-        Uses its own ``random.Random`` (not the global/torch RNG already
-        seeded for init) so the offset is deterministic per member without
-        disturbing weight initialisation.
-        """
+        """Perturb member's grid resolution by a reproducible +/- grid_jitter offset."""
         rng = random.Random(seed)
         offset = rng.randint(-self.grid_jitter, self.grid_jitter)
         for attr in self._GRID_ATTRS:
@@ -98,7 +55,6 @@ class EnsembleModel(BaseKANModel):
                 setattr(member, attr, max(1, getattr(member, attr) + offset))
                 break
 
-    # ------------------------------------------------------------------ build
     def build(self, device: str = "cpu") -> None:
         self.device = device
         self.members = []
@@ -117,7 +73,6 @@ class EnsembleModel(BaseKANModel):
         # A ModuleList gives a single handle for parameters()/to()/train()/eval().
         self.model = nn.ModuleList(mods).to(device)
 
-    # --------------------------------------------------------------- combine
     def _member_preds(self, x: torch.Tensor) -> torch.Tensor:
         # (n_members, B, P) with P = number of predicted parameters (2)
         return torch.stack([m.predict(x) for m in self.members], dim=0)
@@ -133,7 +88,6 @@ class EnsembleModel(BaseKANModel):
         log_sigma = torch.log(std)
         return torch.cat([mu, log_sigma], dim=1)  # (B, 2P)
 
-    # -------------------------------------------------------------------- fit
     def fit(
         self,
         dataset,
@@ -145,22 +99,10 @@ class EnsembleModel(BaseKANModel):
         extra_eval_metrics_fn=None,
         **kwargs,
     ):
-        """Train each member on its own data subset; log score-style metrics.
-
-        Every member is trained independently on plain MSE, but over a
-        *different random subset* of the training set (subsampling, or
-        bootstrap resampling when ``bootstrap=True``). Members therefore differ
-        in both their data and their init, which is what lets the eval-time
-        spread between members be read as a real predictive standard deviation
-        (bagging) rather than mere initialisation noise. The val metrics are
-        computed on the *combined* Gaussian prediction, reusing the
-        Trainer-supplied ``loss_fn`` (score_loss_fn) and
-        ``extra_eval_metrics_fn`` (eval_metric_sums) for full consistency with
-        the single-model score Versuch.
-        """
+        """Train each member on its own data subset; validate on the combined Gaussian prediction."""
         device = self.device
 
-        # --- data handling (mirrors BaseKANModel.fit) ---
+        # mirrors BaseKANModel.fit
         train_ds = dataset["train_input"]
         val_ds = dataset["val_input"]
 
@@ -173,10 +115,7 @@ class EnsembleModel(BaseKANModel):
             loader_kwargs["persistent_workers"] = True
             loader_kwargs["prefetch_factor"] = int(kwargs.get("prefetch_factor", 4))
 
-        # --- per-member data subsets (bagging) ---
-        # Each member sees its own resample of the training set so the members
-        # are approximately independent estimators; their eval-time spread is
-        # then a statistically grounded uncertainty.
+        # per-member resample (bagging) so members are ~independent estimators
         member_loaders = []
         for i in range(self.n_members):
             gen = torch.Generator().manual_seed(self.subset_seed + i)
@@ -212,7 +151,6 @@ class EnsembleModel(BaseKANModel):
         )
 
         for epoch in tqdm(range(epochs), desc="Training (ensemble)"):
-            # --- train: each member on its own data subset / MSE ---
             self.model.train()
             member_mse_sum = torch.zeros((), device=device)
             for m, m_loader in zip(self.members, member_loaders):
@@ -233,7 +171,7 @@ class EnsembleModel(BaseKANModel):
             # report the mean per-member training MSE (comparable to single-model runs)
             train_mse = (member_mse_sum / self.n_members).item()
 
-            # --- validate on the combined Gaussian prediction ---
+            # validate on the combined Gaussian prediction
             self.model.eval()
             val_loss_sum = torch.zeros((), device=device)
             val_total = 0
