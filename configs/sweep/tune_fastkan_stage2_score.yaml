@@ -8,14 +8,16 @@ defaults:
 
 seed: 42
 
-# Stage-1 winner (architecture), pinned. The Stage-1 optimizer winner (lr,
-# weight_decay) is passed at submit time via EXTRA_weak_lensing (see README
-# "Staged Hyperparameter Search").
+# Stage-1 winner, pinned.
 model:
   n_hidden_layers: 3
   hidden_width_0: 256
   hidden_width_1: 256
   hidden_width_2: 128
+
+optimizer:
+  lr: 0.001
+  weight_decay: 0.0
 
 training:
   epochs: 30   # max budget; early stopping ends trials sooner
