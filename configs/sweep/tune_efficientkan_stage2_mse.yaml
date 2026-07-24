@@ -1,13 +1,16 @@
 # @package _global_
 defaults:
-  - /sweep/image/_reduction_sweep
+  - /sweep/_reduction_sweep
   - override /hydra/sweeper: optuna
   - override /hydra/sweeper/sampler: tpe
   - override /model: efficientkan
-  - override /objective: score
+  - override /objective: mse
 
 seed: 42
 
+# Stage-1 winner (architecture), pinned. The Stage-1 optimizer winner (lr,
+# weight_decay) is passed at submit time via EXTRA_weak_lensing (see README
+# "Staged Hyperparameter Search").
 model:
   n_hidden_layers: 3
   hidden_width_0: 384

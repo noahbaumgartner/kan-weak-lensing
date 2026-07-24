@@ -16,11 +16,10 @@
 # aspect ratio, non-square supported) and the dataset.output_dim raw outputs
 # double as the regression head: 2 for objective=mse, 4 (mu, log_sigma) for
 # objective=score. Runs end-to-end on weak_lensing.
-#   Submit:  MODELS="kkan" OBJECTIVE=mse scripts/submit_all.sh <experiment>
+#   Submit:  MODELS="kkan" SWEEP_SUFFIX=_stage1 OBJECTIVE=mse scripts/submit_all.sh <experiment>
 export MODEL=kkan
-export SWEEP="${SWEEP:-image/tune_kkan${SWEEP_SUFFIX:-}}"
 export DATASETS="${DATASETS:-weak_lensing}"
 
 source /cluster/home/baumgnoa/kan-weak-lensing/scripts/_tune_common.sh
 
-# Submit: sbatch --export=ALL,EXPERIMENT=<name> scripts/tune_kkan.submit
+# Submit: sbatch --export=ALL,EXPERIMENT=<name>,SWEEP_SUFFIX=_stage1 scripts/tune_kkan.submit

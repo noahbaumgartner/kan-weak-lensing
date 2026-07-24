@@ -12,8 +12,7 @@
 #SBATCH --export=ALL
 
 export MODEL=efficientkan
-export SWEEP="${SWEEP:-image/tune_efficientkan${SWEEP_SUFFIX:-}}"
 export DATASETS="${DATASETS:-weak_lensing}"
 source /cluster/home/baumgnoa/kan-weak-lensing/scripts/_tune_common.sh
 
-# Submit: sbatch --export=ALL,EXPERIMENT=<name> scripts/tune_efficientkan.submit
+# Submit: sbatch --export=ALL,EXPERIMENT=<name>,SWEEP_SUFFIX=_stage1 scripts/tune_efficientkan.submit

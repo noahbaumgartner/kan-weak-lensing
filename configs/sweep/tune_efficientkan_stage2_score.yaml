@@ -1,0 +1,35 @@
+# @package _global_
+defaults:
+  - /sweep/_reduction_sweep
+  - override /hydra/sweeper: optuna
+  - override /hydra/sweeper/sampler: tpe
+  - override /model: efficientkan
+  - override /objective: score
+
+seed: 42
+
+# Stage-1 winner (architecture), pinned. The Stage-1 optimizer winner (lr,
+# weight_decay) is passed at submit time via EXTRA_weak_lensing (see README
+# "Staged Hyperparameter Search").
+model:
+  n_hidden_layers: 3
+  hidden_width_0: 384
+  hidden_width_1: 512
+  hidden_width_2: 128
+
+training:
+  epochs: 30   # max budget; early stopping ends trials sooner
+  es_patience: 15
+  es_min_delta: 0.0001
+
+hydra:
+  sweeper:
+    sampler:
+      seed: ${seed}
+      n_startup_trials: 10
+    direction: minimize
+
+    n_trials: 40
+    n_jobs: 1
+    params:
+      model.grid_size: range(3, 50)

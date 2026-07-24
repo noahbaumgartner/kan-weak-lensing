@@ -5,22 +5,34 @@ set -euo pipefail
 : "${MODEL:?MODEL must be set by the caller (e.g. MODEL=fastkan)}"
 : "${EXPERIMENT:?EXPERIMENT must be set by the caller (MLflow experiment name)}"
 
-# Optional overrides (set by the caller / forwarded via sbatch --export=ALL):
+# Optional/required overrides (set by the caller / forwarded via sbatch --export=ALL):
 #   SWEEP        — Hydra sweep name including subgroup, overrides the
-#                  per-model default entirely (default: image/tune_${MODEL}).
-#   SWEEP_SUFFIX — appended to the per-model default instead, e.g. "_arch" or
-#                  "_reduction"/"_model" to target the staged-sweep variants
-#                  (see README "Gestaffeltes Sweeping") without having to
-#                  spell out SWEEP per model — handy with submit_all.sh where
-#                  one SWEEP value can't fit every model's sweep filename.
+#                  per-model default entirely (default: tune_${MODEL}${SWEEP_SUFFIX}).
+#   SWEEP_SUFFIX — required unless SWEEP is set directly. Selects the staged-sweep
+#                  variant for MODEL: "_stage1" (architecture, same config for both
+#                  objectives, but still submitted once per OBJECTIVE, see below) or
+#                  "_stage2_mse"/"_stage2_score" (reduction + model-specific params,
+#                  Stage-1 winner pinned, see README "Staged Hyperparameter Search").
+#                  Without having to spell out SWEEP per model, handy with
+#                  submit_all.sh where one SWEEP value can't fit every model's sweep
+#                  filename. There is no unstaged/generic sweep file to fall back
+#                  to, so this must be set explicitly.
 #   DATASETS     — space-separated list of dataset names
 #   OBJECTIVE    — Versuch / training objective (e.g. score | mse). If set,
-#                  passed as objective=${OBJECTIVE}; otherwise the
-#                  config.yaml default is used.
+#                  passed as objective=${OBJECTIVE}; otherwise the config.yaml
+#                  default is used. The _stage1 sweep config is objective-agnostic
+#                  (same architecture search space either way) but still trains
+#                  under a real loss, so it must be submitted twice, once with
+#                  OBJECTIVE=mse and once with OBJECTIVE=score, to get a winner
+#                  for each track; _stage2_mse/_stage2_score already bake the
+#                  objective into the sweep config itself.
 # Image->vector reduction (avgpool | conv) is swept per trial by the Optuna
-# sweeper (dataset.reduction in configs/sweep/image/_reduction_sweep.yaml) —
-# not fixed per job, so it's not an override here.
-SWEEP="${SWEEP:-image/tune_${MODEL}}"
+# sweeper (dataset.reduction in configs/sweep/_reduction_sweep.yaml), not fixed
+# per job, so it's not an override here.
+if [[ -z "${SWEEP:-}" ]]; then
+  : "${SWEEP_SUFFIX:?SWEEP or SWEEP_SUFFIX must be set, e.g. SWEEP_SUFFIX=_stage1 (see README)}"
+  SWEEP="tune_${MODEL}${SWEEP_SUFFIX}"
+fi
 OBJECTIVE_ARG=()
 if [[ -n "${OBJECTIVE:-}" ]]; then
   OBJECTIVE_ARG=("objective=${OBJECTIVE}")

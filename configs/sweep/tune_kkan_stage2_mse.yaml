@@ -7,6 +7,8 @@ defaults:
 
 seed: 42
 
+# Stage-1 winner (optimizer + batch size), pinned below (kkan has no swept
+# architecture knobs in Stage 1 beyond batch size).
 optimizer:
   lr: 0.0030148818406889907
   weight_decay: 0.0034683764817722493

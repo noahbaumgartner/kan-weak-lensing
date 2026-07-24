@@ -3,11 +3,19 @@ defaults:
   - override /hydra/sweeper: optuna
   - override /hydra/sweeper/sampler: tpe
   - override /model: kkan
+  - override /objective: score
 
 seed: 42
 
+# Stage-1 winner (optimizer + batch size), pinned below (kkan has no swept
+# architecture knobs in Stage 1 beyond batch size).
+optimizer:
+  lr: 0.003137688858086596
+  weight_decay: 2.7715121576007015e-05
+
 training:
   epochs: 20
+  batch_size: 16
 
 hydra:
   sweeper:

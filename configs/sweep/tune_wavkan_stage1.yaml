@@ -1,15 +1,15 @@
 # @package _global_
 defaults:
   - /sweep/tune_base
-  - /sweep/image/_optimizer_sweep
-  - /sweep/image/_reduction_sweep
+  - /sweep/_optimizer_sweep
   - override /model: wavkan
+
+dataset:
+  reduction: conv
 
 training:
   epochs: 20   # max budget; early stopping (configs/training/default.yaml) ends trials sooner
 
 hydra:
   sweeper:
-    n_trials: 30
-    params:
-      model.wavelet_type: choice(mexican_hat, morlet, dog, meyer, shannon)
+    n_trials: 50

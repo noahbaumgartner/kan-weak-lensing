@@ -9,20 +9,25 @@ if [[ $# -ne 1 ]]; then
   echo "  Env overrides (forwarded to the jobs via --export=ALL):" >&2
   echo "    MODELS=\"fastkan wavkan\"  models to submit (default: fastkan fasterkan efficientkan wavkan)" >&2
   echo "    OBJECTIVE=mse|score      training objective (default: config.yaml = score)" >&2
-  echo "    SWEEP_SUFFIX=_arch       target the staged-sweep variant for every submitted" >&2
-  echo "                             model (_arch = Stage 1, _reduction/_model = Stage 2," >&2
-  echo "                             see README \"Gestaffeltes Sweeping\")" >&2
+  echo "    SWEEP_SUFFIX=_stage1     required (no unstaged sweep exists to fall back to)." >&2
+  echo "                             Selects the staged-sweep variant for every submitted" >&2
+  echo "                             model: _stage1 (architecture) or _stage2_mse/_stage2_score" >&2
+  echo "                             (reduction + model-specific params, Stage-1 winner pinned)." >&2
+  echo "                             See README \"Staged Hyperparameter Search\". _stage1 is the" >&2
+  echo "                             same config for both objectives but still needs one call" >&2
+  echo "                             per OBJECTIVE (different loss/output_dim, see below)." >&2
   echo "" >&2
   echo "  Image->vector reduction (avgpool|conv) is swept per trial by Optuna for" >&2
-  echo "  MLP models, not fixed per job. kkan/kat are excluded by default (not yet" >&2
-  echo "  adapted to weak lensing, tend to OOM); add them back via MODELS=." >&2
+  echo "  MLP models, not fixed per job. kkan/kat use this same script for both stages," >&2
+  echo "  just not in the default MODELS list (heavier, longer-running); add them via" >&2
+  echo "  e.g. MODELS=\"kat kkan\" SWEEP_SUFFIX=_stage1, or _stage2_mse/_stage2_score for Stage 2." >&2
   exit 1
 fi
 
 EXPERIMENT="$1"
-# Models to submit. Default: the MLP-style models only (kkan/kat are not yet
-# adapted to weak lensing and tend to OOM). Add them back with e.g.
-# MODELS="fastkan fasterkan efficientkan wavkan kkan kat".
+# Models to submit. Default: the MLP-style/reduction models only, see usage
+# note above for adding kkan/kat back, e.g.
+# MODELS="fastkan fasterkan efficientkan wavkan kkan kat" SWEEP_SUFFIX=_stage1.
 if [[ -n "${MODELS:-}" ]]; then
   read -r -a MODEL_LIST <<< "${MODELS}"
 else

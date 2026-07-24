@@ -1,5 +1,6 @@
 # @package _global_
 defaults:
+  - /sweep/_optimizer_sweep
   - override /hydra/sweeper: optuna
   - override /hydra/sweeper/sampler: tpe
   - override /model: kat
@@ -13,10 +14,10 @@ hydra:
   sweeper:
     sampler:
       seed: ${seed}
-      n_startup_trials: 10 # random-sample this many trials before TPE kicks in
+      n_startup_trials: 10
     direction: minimize
 
-    n_trials: 30
+    n_trials: 50
     n_jobs: 1
     params:
       training.batch_size: choice(64, 128, 256)
@@ -24,7 +25,3 @@ hydra:
       model.depth: range(2, 7)
       model.num_heads: choice(2, 4, 8)
       model.mlp_ratio: choice(2.0, 4.0)
-      model.drop_path_rate: interval(0.0, 0.2)
-      model.act_init: choice(gelu, swish)
-      optimizer.lr: tag(log, interval(1e-5, 5e-3))
-      optimizer.weight_decay: tag(log, interval(1e-6, 1e-2))
